@@ -1,0 +1,548 @@
+# Flutter Translate Example
+
+Projeto de referência que demonstra como implementar **internacionalização (l10n)** com a solução oficial do Flutter (`flutter_localizations` + `gen-l10n`) combinada com **persistência de idioma** via `shared_preferences`, seguindo a arquitetura **MVVM** recomendada pela equipe Flutter.
+
+---
+
+## Sumário
+
+1. [Estrutura do projeto](#1-estrutura-do-projeto)
+2. [Dependências](#2-dependências)
+3. [Como a internacionalização foi configurada](#3-como-a-internacionalização-foi-configurada)
+4. [Estrutura e uso dos arquivos de tradução (ARB)](#4-estrutura-e-uso-dos-arquivos-de-tradução-arb)
+5. [Como o idioma padrão é definido](#5-como-o-idioma-padrão-é-definido)
+6. [Persistência com SharedPreferences](#6-persistência-com-sharedpreferences)
+7. [Fluxo completo: do início do app à troca de idioma](#7-fluxo-completo-do-início-do-app-à-troca-de-idioma)
+8. [Como adicionar um novo idioma](#8-como-adicionar-um-novo-idioma)
+9. [Referências](#9-referências)
+
+---
+
+## 1. Estrutura do projeto
+
+```
+lib/
+├── main.dart                          # Ponto de entrada; composição das dependências
+├── app.dart                           # Widget raiz (MaterialApp)
+│
+├── data/
+│   ├── repositories/
+│   │   └── locale_repository.dart    # Leitura e escrita do idioma no SharedPreferences
+│   └── services/
+│       └── locale_service.dart       # Estado global do idioma (ChangeNotifier)
+│
+├── domain/
+│   └── app_locales.dart              # Constantes de idiomas disponíveis
+│
+├── ui/
+│   ├── core/
+│   │   └── widgets/
+│   │       └── app_dropdown_menu.dart # Widget de seleção reutilizável
+│   └── home/
+│       ├── view_model/
+│       │   └── home_view_model.dart  # Lógica de apresentação da tela inicial
+│       └── widgets/
+│           └── home_screen.dart      # Tela inicial
+│
+└── l10n/
+    ├── context_l10n.dart             # Extensão de atalho para BuildContext
+    ├── app_en.arb                    # Traduções em inglês (template)
+    ├── app_es.arb                    # Traduções em espanhol
+    ├── app_pt.arb                    # Traduções em português
+    ├── app_zh.arb                    # Traduções em chinês
+    └── app_localizations*.dart       # Arquivos gerados automaticamente pelo Flutter
+```
+
+---
+
+## 2. Dependências
+
+```yaml
+# pubspec.yaml
+dependencies:
+  flutter_localizations:
+    sdk: flutter      # Pacote oficial de localização do Flutter
+  intl: any           # Formatação de datas, números e plurais por locale
+  shared_preferences: ^2.5.5  # Persistência de chave-valor no dispositivo
+
+flutter:
+  generate: true      # Habilita a geração automática de código l10n
+```
+
+> **Por que `intl: any`?** O SDK do Flutter já trava a versão do `intl` internamente via `flutter_localizations`. Usar `any` evita conflitos de versão.
+
+---
+
+## 3. Como a internacionalização foi configurada
+
+A configuração usa a solução **oficial** do Flutter: o comando `flutter gen-l10n`, que lê arquivos `.arb` e gera classes Dart automaticamente.
+
+### 3.1 Arquivo `l10n.yaml`
+
+Na raiz do projeto existe o arquivo `l10n.yaml`, que instrui o gerador:
+
+```yaml
+# l10n.yaml
+arb-dir: lib/l10n                        # Pasta onde ficam os arquivos .arb
+template-arb-file: app_en.arb            # Arquivo-template (define as chaves)
+output-localization-file: app_localizations.dart  # Nome do arquivo gerado
+```
+
+| Campo | Significado |
+|---|---|
+| `arb-dir` | Onde o gerador procura os arquivos de tradução |
+| `template-arb-file` | Define quais chaves existem e serve de referência para os demais idiomas |
+| `output-localization-file` | Nome da classe base gerada |
+
+### 3.2 Habilitando a geração no `pubspec.yaml`
+
+```yaml
+flutter:
+  generate: true   # <-- essencial para o gen-l10n funcionar
+```
+
+Sem essa linha, o Flutter não executa o gerador durante o build.
+
+### 3.3 O que é gerado
+
+Após rodar `flutter pub get` (ou `flutter run`), o Flutter gera automaticamente em `lib/l10n/`:
+
+- `app_localizations.dart` — classe abstrata base `AppLocalizations`
+- `app_localizations_en.dart` — implementação para inglês
+- `app_localizations_es.dart` — implementação para espanhol
+- `app_localizations_pt.dart` — implementação para português
+- `app_localizations_zh.dart` — implementação para chinês
+
+> **Nunca edite os arquivos gerados.** Eles são sobrescritos a cada build. Edite apenas os `.arb`.
+
+### 3.4 Registrando os delegates no `MaterialApp`
+
+```dart
+// lib/app.dart
+MaterialApp(
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  locale: localeService.locale,
+  home: HomeScreen(localeService: localeService),
+)
+```
+
+| Propriedade | O que faz |
+|---|---|
+| `localizationsDelegates` | Registra os provedores de strings traduzidas (inclui Material, Cupertino e Widgets) |
+| `supportedLocales` | Lista os idiomas que o app suporta |
+| `locale` | Define o idioma ativo. Quando muda, o `MaterialApp` reconstrói a árvore |
+
+O `localeService` é um `ChangeNotifier`. O `ListenableBuilder` envolve o `MaterialApp` para que qualquer mudança de idioma reconstrua o widget e aplique o novo `locale`:
+
+```dart
+// lib/app.dart
+ListenableBuilder(
+  listenable: localeService,
+  builder: (context, _) {
+    return MaterialApp(
+      locale: localeService.locale,
+      // ...
+    );
+  },
+)
+```
+
+### 3.5 Acessando as strings traduzidas na UI
+
+Uma extensão sobre `BuildContext` elimina o boilerplate de `AppLocalizations.of(context)!`:
+
+```dart
+// lib/l10n/context_l10n.dart
+extension AppLocalizationsContext on BuildContext {
+  AppLocalizations get l10n => AppLocalizations.of(this)!;
+}
+```
+
+Uso na tela:
+
+```dart
+// lib/ui/home/widgets/home_screen.dart
+Text(context.l10n.helloWorld)
+```
+
+---
+
+## 4. Estrutura e uso dos arquivos de tradução (ARB)
+
+Os arquivos `.arb` (Application Resource Bundle) são JSONs que contêm as strings traduzidas.
+
+### 4.1 O arquivo-template: `app_en.arb`
+
+```json
+{
+  "@@locale": "en",
+  "helloWorld": "Hello World",
+  "@helloWorld": {
+    "description": "The conventional newborn programmer greeting"
+  }
+}
+```
+
+| Campo | Significado |
+|---|---|
+| `@@locale` | Declara o idioma do arquivo |
+| `"helloWorld"` | Chave da string (usada no código como `context.l10n.helloWorld`) |
+| `"@helloWorld"` | Metadados da string (descrição, parâmetros, exemplos) |
+
+O arquivo `app_en.arb` é o **template**: todas as chaves que você quiser usar no app devem estar nele. Os outros `.arb` traduzem essas mesmas chaves.
+
+### 4.2 Arquivos dos demais idiomas
+
+Os arquivos secundários só precisam conter a chave `@@locale` e as traduções, sem metadados:
+
+```json
+// app_pt.arb
+{
+  "@@locale": "pt",
+  "helloWorld": "Olá, mundo"
+}
+```
+
+```json
+// app_es.arb
+{
+  "@@locale": "es",
+  "helloWorld": "Hola, mundo"
+}
+```
+
+```json
+// app_zh.arb
+{
+  "@@locale": "zh",
+  "helloWorld": "你好，世界"
+}
+```
+
+### 4.3 Adicionando uma nova string traduzível
+
+**Passo 1:** Adicione a chave no template `app_en.arb`:
+
+```json
+{
+  "@@locale": "en",
+  "helloWorld": "Hello World",
+  "@helloWorld": {
+    "description": "The conventional newborn programmer greeting"
+  },
+  "welcomeMessage": "Welcome, {name}!",
+  "@welcomeMessage": {
+    "description": "Greeting with the user's name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
+}
+```
+
+**Passo 2:** Adicione a tradução nos demais `.arb`:
+
+```json
+// app_pt.arb
+{
+  "@@locale": "pt",
+  "helloWorld": "Olá, mundo",
+  "welcomeMessage": "Bem-vindo, {name}!"
+}
+```
+
+**Passo 3:** Use no código:
+
+```dart
+Text(context.l10n.welcomeMessage('João'))
+```
+
+---
+
+## 5. Como o idioma padrão é definido
+
+O idioma padrão é definido em `LocaleRepository`, na camada de dados:
+
+```dart
+// lib/data/repositories/locale_repository.dart
+static const _defaultLocale = Locale('en');
+
+Locale load() {
+  final saved = _prefs.getString(_key);
+  if (saved == null) return _defaultLocale; // <-- retorna inglês se nada foi salvo
+  // ...
+}
+```
+
+**Regra:** na primeira execução do app, nenhuma preferência foi salva ainda, então `_prefs.getString('locale')` retorna `null` e o método devolve `Locale('en')` como padrão.
+
+Para alterar o idioma padrão, basta mudar o valor da constante:
+
+```dart
+static const _defaultLocale = Locale('pt'); // Agora o padrão é português
+```
+
+---
+
+## 6. Persistência com SharedPreferences
+
+### 6.1 Como o idioma é serializado
+
+O `Locale` do Flutter tem dois componentes: `languageCode` e `countryCode` (opcional). Para salvar como string no `SharedPreferences`, o repositório os serializa com underscore:
+
+```
+Locale('en')       → "en"
+Locale('pt', 'BR') → "pt_BR"
+Locale('zh')       → "zh"
+```
+
+### 6.2 `LocaleRepository`: salvar e carregar
+
+```dart
+// lib/data/repositories/locale_repository.dart
+class LocaleRepository {
+  LocaleRepository(this._prefs);
+
+  static const _key = 'locale';
+  static const _defaultLocale = Locale('en');
+
+  final SharedPreferences _prefs;
+
+  // Carrega o idioma salvo. Retorna o padrão se não houver nada.
+  Locale load() {
+    final saved = _prefs.getString(_key);
+    if (saved == null) return _defaultLocale;
+    final parts = saved.split('_');
+    return parts.length == 2
+        ? Locale(parts[0], parts[1])  // ex: "pt_BR" → Locale('pt', 'BR')
+        : Locale(parts[0]);           // ex: "en"    → Locale('en')
+  }
+
+  // Serializa e persiste o idioma no dispositivo.
+  Future<void> save(Locale locale) async {
+    final value = locale.countryCode != null
+        ? '${locale.languageCode}_${locale.countryCode}'
+        : locale.languageCode;
+    await _prefs.setString(_key, value);
+  }
+}
+```
+
+### 6.3 Por que o `SharedPreferences` é inicializado no `main`
+
+O método `SharedPreferences.getInstance()` é assíncrono. Para que o idioma já esteja disponível **antes** de o app renderizar qualquer widget, ele é inicializado no `main` com `await`:
+
+```dart
+// lib/main.dart
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // necessário antes de qualquer await
+  final prefs = await SharedPreferences.getInstance();
+  final repository = LocaleRepository(prefs);
+  final localeService = LocaleService(repository);
+  runApp(App(localeService: localeService));
+}
+```
+
+Esse padrão garante que o idioma correto é aplicado já no primeiro frame, sem piscar para o idioma padrão e depois mudar.
+
+### 6.4 `LocaleService`: estado em memória + persistência
+
+```dart
+// lib/data/services/locale_service.dart
+class LocaleService extends ChangeNotifier {
+  // O idioma já carregado do repositório é definido na inicialização
+  LocaleService(this._repository) : _locale = _repository.load();
+
+  final LocaleRepository _repository;
+  Locale _locale;
+
+  Locale get locale => _locale;
+
+  Future<void> setLocale(Locale locale) async {
+    if (_locale == locale) return; // evita notificações desnecessárias
+    _locale = locale;
+    notifyListeners(); // atualiza a UI imediatamente
+    await _repository.save(locale); // persiste em background
+  }
+}
+```
+
+**Detalhe importante:** `notifyListeners()` é chamado **antes** de `_repository.save()`. Isso faz a UI responder de forma instantânea, enquanto a escrita no disco acontece de forma assíncrona em seguida.
+
+---
+
+## 7. Fluxo completo: do início do app à troca de idioma
+
+### 7.1 Inicialização
+
+```
+main()
+  │
+  ├─ await SharedPreferences.getInstance()
+  │     └─ acessa o armazenamento local do dispositivo
+  │
+  ├─ LocaleRepository(prefs)
+  │     └─ encapsula o acesso ao SharedPreferences
+  │
+  ├─ LocaleService(repository)
+  │     └─ chama repository.load() no construtor
+  │           └─ lê a chave "locale" do SharedPreferences
+  │                 ├─ se existir → devolve o Locale salvo
+  │                 └─ se não existir → devolve Locale('en')
+  │
+  └─ runApp(App(localeService: localeService))
+        └─ MaterialApp já renderiza com o locale correto
+```
+
+### 7.2 Troca de idioma pelo usuário
+
+```
+Usuário seleciona "Português" no dropdown
+  │
+  ├─ HomeScreen.onSelected("Português")
+  │
+  ├─ HomeViewModel.setLocale("Português")
+  │     ├─ converte o label para o código: "Português" → "pt"
+  │     └─ chama localeService.setLocale(Locale('pt'))
+  │
+  ├─ LocaleService.setLocale(Locale('pt'))
+  │     ├─ atualiza _locale em memória
+  │     ├─ notifyListeners() → acorda todos os ouvintes
+  │     └─ repository.save(Locale('pt')) → grava "pt" no SharedPreferences
+  │
+  ├─ ListenableBuilder em App recebe a notificação
+  │     └─ reconstrói o MaterialApp com locale: Locale('pt')
+  │
+  └─ Flutter reconstrói toda a árvore de widgets com as strings em português
+```
+
+### 7.3 Diagrama de camadas
+
+```
+┌─────────────────────────────────────────────┐
+│                  UI Layer                    │
+│  HomeScreen  ──►  HomeViewModel             │
+│  (widgets)        (ChangeNotifier)           │
+└──────────────────────┬──────────────────────┘
+                       │ usa
+┌──────────────────────▼──────────────────────┐
+│               Data Layer                     │
+│  LocaleService (ChangeNotifier)             │
+│       │                                      │
+│       └──► LocaleRepository                 │
+│                  │                           │
+│                  └──► SharedPreferences      │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## 8. Como adicionar um novo idioma
+
+Este é um processo de **4 etapas**. Vamos usar o **francês** (`fr`) como exemplo.
+
+### Etapa 1 — Criar o arquivo ARB
+
+Crie o arquivo `lib/l10n/app_fr.arb` com as traduções:
+
+```json
+{
+  "@@locale": "fr",
+  "helloWorld": "Bonjour le monde"
+}
+```
+
+> Todas as chaves que existem no `app_en.arb` (template) devem ser traduzidas aqui.
+
+### Etapa 2 — Registrar o idioma nos metadados do app
+
+Abra `lib/domain/app_locales.dart` e adicione o francês:
+
+```dart
+// lib/domain/app_locales.dart
+const Map<String, String> appLocaleLabels = <String, String>{
+  'en': 'English',
+  'es': 'Español',
+  'pt': 'Português',
+  'zh': '中文',
+  'fr': 'Français', // +fr
+};
+```
+
+Esse mapa alimenta o dropdown da tela e a lógica de conversão entre label e código.
+
+### Etapa 3 — Verificar o `LocaleRepository`
+
+O `LocaleRepository` **não precisa de alteração**. Ele serializa e desserializa qualquer `Locale` de forma genérica:
+
+```dart
+// Salva qualquer Locale como string
+Future<void> save(Locale locale) async {
+  final value = locale.countryCode != null
+      ? '${locale.languageCode}_${locale.countryCode}'
+      : locale.languageCode; // "fr" será salvo como "fr"
+  await _prefs.setString(_key, value);
+}
+
+// Carrega qualquer string e converte de volta para Locale
+Locale load() {
+  final saved = _prefs.getString(_key); // lê "fr"
+  if (saved == null) return _defaultLocale;
+  final parts = saved.split('_');
+  return parts.length == 2
+      ? Locale(parts[0], parts[1])
+      : Locale(parts[0]); // Locale('fr')
+}
+```
+
+O `SharedPreferences` salvará `"fr"` e recuperará `Locale('fr')` automaticamente.
+
+### Etapa 4 — Executar o gerador
+
+Execute qualquer um dos comandos abaixo para gerar o arquivo `app_localizations_fr.dart`:
+
+```bash
+flutter pub get
+# ou
+flutter run
+# ou, explicitamente:
+dart run intl_utils:generate
+```
+
+O Flutter detectará o novo `app_fr.arb` e criará `lib/l10n/app_localizations_fr.dart` automaticamente. O novo idioma já aparecerá no dropdown e será persistido corretamente.
+
+### Resumo das alterações para adicionar um idioma
+
+| Arquivo | O que fazer |
+|---|---|
+| `lib/l10n/app_fr.arb` | **Criar** com as traduções |
+| `lib/domain/app_locales.dart` | **Adicionar** código e label ao mapa |
+| `lib/data/repositories/locale_repository.dart` | **Nada** — funciona para qualquer locale |
+| `lib/app.dart` | **Nada** — usa `AppLocalizations.supportedLocales` (gerado) |
+
+### Exemplo com código de país: Português do Brasil (`pt_BR`)
+
+Para idiomas que usam código de país, o processo é idêntico. Crie `app_pt_BR.arb`:
+
+```json
+{
+  "@@locale": "pt_BR",
+  "helloWorld": "Olá, Mundo!"
+}
+```
+
+Registre em `app_locales.dart`:
+
+```dart
+const Map<String, String> appLocaleLabels = <String, String>{
+  // ...
+  'pt_BR': 'Português (Brasil)',
+};
+```
+
+O repositório serializará `Locale('pt', 'BR')` como `"pt_BR"` e desserializará corretamente na próxima inicialização.
+
+---
