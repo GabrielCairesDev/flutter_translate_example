@@ -14,7 +14,6 @@ Projeto de referência que demonstra como implementar **internacionalização (l
 6. [Persistência com SharedPreferences](#6-persistência-com-sharedpreferences)
 7. [Fluxo completo: do início do app à troca de idioma](#7-fluxo-completo-do-início-do-app-à-troca-de-idioma)
 8. [Como adicionar um novo idioma](#8-como-adicionar-um-novo-idioma)
-9. [Referências](#9-referências)
 
 ---
 
@@ -546,3 +545,5 @@ const Map<String, String> appLocaleLabels = <String, String>{
 O repositório serializará `Locale('pt', 'BR')` como `"pt_BR"` e desserializará corretamente na próxima inicialização.
 
 ---
+<img width="243" height="517" alt="image" src="https://github.com/user-attachments/assets/e860cc19-a882-499f-a74c-afa01da22e2a" />
+<img width="248" height="514" alt="image" src="https://github.com/user-attachments/assets/3ceb35a7-f20e-47ea-832d-7daeb67c1212" />
