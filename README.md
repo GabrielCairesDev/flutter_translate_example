@@ -31,7 +31,7 @@ lib/
 │       └── locale_service.dart       # Estado global do idioma (ChangeNotifier)
 │
 ├── domain/
-│   └── app_locales.dart              # Constantes de idiomas disponíveis
+│   └── app_locales.dart              # Mapa de idiomas e funções utilitárias de conversão de Locale
 │
 ├── ui/
 │   ├── core/
@@ -271,8 +271,7 @@ static const _defaultLocale = Locale('en');
 
 Locale load() {
   final saved = _prefs.getString(_key);
-  if (saved == null) return _defaultLocale; // <-- retorna inglês se nada foi salvo
-  // ...
+  return saved != null ? localeFromCode(saved) : _defaultLocale; // <-- retorna inglês se nada foi salvo
 }
 ```
 
@@ -290,7 +289,24 @@ static const _defaultLocale = Locale('pt'); // Agora o padrão é português
 
 ### 6.1 Como o idioma é serializado
 
-O `Locale` do Flutter tem dois componentes: `languageCode` e `countryCode` (opcional). Para salvar como string no `SharedPreferences`, o repositório os serializa com underscore:
+O `Locale` do Flutter tem dois componentes: `languageCode` e `countryCode` (opcional). A serialização e desserialização são feitas pelas funções utilitárias definidas em `lib/domain/app_locales.dart`:
+
+```dart
+// lib/domain/app_locales.dart
+
+// Converte código string → Locale
+Locale localeFromCode(String code) {
+  final parts = code.split('_');
+  return parts.length == 2 ? Locale(parts[0], parts[1]) : Locale(parts[0]);
+}
+
+// Converte Locale → código string
+String localeToCode(Locale locale) {
+  return locale.countryCode != null
+      ? '${locale.languageCode}_${locale.countryCode}'
+      : locale.languageCode;
+}
+```
 
 ```
 Locale('en')       → "en"
@@ -299,6 +315,8 @@ Locale('zh')       → "zh"
 ```
 
 ### 6.2 `LocaleRepository`: salvar e carregar
+
+O repositório delega a serialização para as funções acima, mantendo-se simples e genérico:
 
 ```dart
 // lib/data/repositories/locale_repository.dart
@@ -310,22 +328,13 @@ class LocaleRepository {
 
   final SharedPreferences _prefs;
 
-  // Carrega o idioma salvo. Retorna o padrão se não houver nada.
   Locale load() {
     final saved = _prefs.getString(_key);
-    if (saved == null) return _defaultLocale;
-    final parts = saved.split('_');
-    return parts.length == 2
-        ? Locale(parts[0], parts[1])  // ex: "pt_BR" → Locale('pt', 'BR')
-        : Locale(parts[0]);           // ex: "en"    → Locale('en')
+    return saved != null ? localeFromCode(saved) : _defaultLocale;
   }
 
-  // Serializa e persiste o idioma no dispositivo.
   Future<void> save(Locale locale) async {
-    final value = locale.countryCode != null
-        ? '${locale.languageCode}_${locale.countryCode}'
-        : locale.languageCode;
-    await _prefs.setString(_key, value);
+    await _prefs.setString(_key, localeToCode(locale));
   }
 }
 ```
@@ -473,31 +482,24 @@ const Map<String, String> appLocaleLabels = <String, String>{
 
 Esse mapa alimenta o dropdown da tela e a lógica de conversão entre label e código.
 
-### Etapa 3 — Verificar o `LocaleRepository`
+### Etapa 3 — Verificar o `LocaleRepository` e `app_locales.dart`
 
-O `LocaleRepository` **não precisa de alteração**. Ele serializa e desserializa qualquer `Locale` de forma genérica:
+O `LocaleRepository` **não precisa de alteração**. Ele delega toda a lógica de serialização para as funções `localeToCode` e `localeFromCode` de `app_locales.dart`, que já tratam qualquer `Locale` de forma genérica:
 
 ```dart
-// Salva qualquer Locale como string
+// Salva qualquer Locale como string ("fr" neste exemplo)
 Future<void> save(Locale locale) async {
-  final value = locale.countryCode != null
-      ? '${locale.languageCode}_${locale.countryCode}'
-      : locale.languageCode; // "fr" será salvo como "fr"
-  await _prefs.setString(_key, value);
+  await _prefs.setString(_key, localeToCode(locale)); // Locale('fr') → "fr"
 }
 
-// Carrega qualquer string e converte de volta para Locale
+// Carrega a string e converte de volta para Locale
 Locale load() {
   final saved = _prefs.getString(_key); // lê "fr"
-  if (saved == null) return _defaultLocale;
-  final parts = saved.split('_');
-  return parts.length == 2
-      ? Locale(parts[0], parts[1])
-      : Locale(parts[0]); // Locale('fr')
+  return saved != null ? localeFromCode(saved) : _defaultLocale; // → Locale('fr')
 }
 ```
 
-O `SharedPreferences` salvará `"fr"` e recuperará `Locale('fr')` automaticamente.
+Da mesma forma, as funções `localeFromCode` e `localeToCode` em `app_locales.dart` **não precisam de alteração** — elas já funcionam para qualquer código de idioma.
 
 ### Etapa 4 — Executar o gerador
 
@@ -518,8 +520,9 @@ O Flutter detectará o novo `app_fr.arb` e criará `lib/l10n/app_localizations_f
 | Arquivo | O que fazer |
 |---|---|
 | `lib/l10n/app_fr.arb` | **Criar** com as traduções |
-| `lib/domain/app_locales.dart` | **Adicionar** código e label ao mapa |
-| `lib/data/repositories/locale_repository.dart` | **Nada** — funciona para qualquer locale |
+| `lib/domain/app_locales.dart` | **Adicionar** código e label ao mapa `appLocaleLabels` |
+| `lib/data/repositories/locale_repository.dart` | **Nada** — delega a serialização para `app_locales.dart` |
+| `lib/domain/app_locales.dart` (`localeFromCode`/`localeToCode`) | **Nada** — funções genéricas para qualquer locale |
 | `lib/app.dart` | **Nada** — usa `AppLocalizations.supportedLocales` (gerado) |
 
 ### Exemplo com código de país: Português do Brasil (`pt_BR`)
