@@ -8,7 +8,7 @@ import 'data/services/locale_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  final repository = LocaleRepository(prefs);
-  final localeService = LocaleService(repository);
-  runApp(App(localeService: localeService));
+  final service = LocaleService(prefs);
+  final repository = LocaleRepository(service);
+  runApp(App(localeRepository: repository));
 }

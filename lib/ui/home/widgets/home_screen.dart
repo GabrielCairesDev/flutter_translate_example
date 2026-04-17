@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_translate_example/data/services/locale_service.dart';
+import 'package:flutter_translate_example/data/repositories/locale_repository.dart';
 import 'package:flutter_translate_example/l10n/context_l10n.dart';
 import 'package:flutter_translate_example/ui/core/widgets/app_dropdown_menu.dart';
 
 import '../view_model/home_view_model.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.localeService});
+  const HomeScreen({super.key, required this.localeRepository});
 
-  final LocaleService localeService;
+  final LocaleRepository localeRepository;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -20,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = HomeViewModel(widget.localeService);
+    _viewModel = HomeViewModel(widget.localeRepository);
   }
 
   @override

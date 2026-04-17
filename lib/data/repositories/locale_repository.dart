@@ -1,22 +1,19 @@
 import 'package:flutter/widgets.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../domain/app_locales.dart';
+import '../services/locale_service.dart';
 
-class LocaleRepository {
-  LocaleRepository(this._prefs);
+class LocaleRepository extends ChangeNotifier {
+  LocaleRepository(this._service) : _locale = _service.load();
 
-  static const _key = 'locale';
-  static const _defaultLocale = Locale('en');
+  final LocaleService _service;
+  Locale _locale;
 
-  final SharedPreferences _prefs;
+  Locale get locale => _locale;
 
-  Locale load() {
-    final saved = _prefs.getString(_key);
-    return saved != null ? localeFromCode(saved) : _defaultLocale;
-  }
-
-  Future<void> save(Locale locale) async {
-    await _prefs.setString(_key, localeToCode(locale));
+  Future<void> setLocale(Locale locale) async {
+    if (_locale == locale) return;
+    _locale = locale;
+    notifyListeners();
+    await _service.save(locale);
   }
 }
