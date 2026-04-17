@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'data/services/locale_service.dart';
 import 'l10n/app_localizations.dart';
-import 'ui/home/widgets/home_screen.dart';
+import 'routing/app_routes.dart';
 
 class App extends StatelessWidget {
   const App({super.key, required this.localeService});
@@ -19,7 +19,8 @@ class App extends StatelessWidget {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           locale: localeService.locale,
-          home: HomeScreen(localeService: localeService),
+          initialRoute: AppRoutes.home,
+          routes: AppRoutes.routes(localeService),
         );
       },
     );

@@ -33,6 +33,9 @@ lib/
 ├── domain/
 │   └── app_locales.dart              # Mapa de idiomas e funções utilitárias de conversão de Locale
 │
+├── routing/
+│   └── app_routes.dart               # Rotas nomeadas do app
+│
 ├── ui/
 │   ├── core/
 │   │   └── widgets/
@@ -122,7 +125,8 @@ MaterialApp(
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   supportedLocales: AppLocalizations.supportedLocales,
   locale: localeService.locale,
-  home: HomeScreen(localeService: localeService),
+  initialRoute: AppRoutes.home,
+  routes: AppRoutes.routes(localeService),
 )
 ```
 
@@ -131,6 +135,8 @@ MaterialApp(
 | `localizationsDelegates` | Registra os provedores de strings traduzidas (inclui Material, Cupertino e Widgets) |
 | `supportedLocales` | Lista os idiomas que o app suporta |
 | `locale` | Define o idioma ativo. Quando muda, o `MaterialApp` reconstrói a árvore |
+| `initialRoute` | Rota exibida na inicialização do app |
+| `routes` | Mapa de rotas nomeadas definido em `AppRoutes` |
 
 O `localeService` é um `ChangeNotifier`. O `ListenableBuilder` envolve o `MaterialApp` para que qualquer mudança de idioma reconstrua o widget e aplique o novo `locale`:
 
