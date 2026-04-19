@@ -163,8 +163,6 @@ ListenableBuilder(
 )
 ```
 
-O widget `AppDropdownMenu` cacheia as entradas do menu em `_menuEntries`, calculadas uma única vez no `initState` e recalculadas no `didUpdateWidget` somente quando a lista de opções muda. Isso evita a reconstrução desnecessária das entradas a cada `build` e impede reações duplicadas ao selecionar a opção já ativa (`if (value == null || value == _selected) return`).
-
 ### 3.5 Acessando as strings traduzidas na UI
 
 Uma extensão sobre `BuildContext` elimina o boilerplate de `AppLocalizations.of(context)!`:
