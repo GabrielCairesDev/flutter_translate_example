@@ -12,10 +12,11 @@ Projeto de referência que demonstra como implementar **internacionalização (l
 4. [Estrutura e uso dos arquivos de tradução (ARB)](#4-estrutura-e-uso-dos-arquivos-de-tradução-arb)
 5. [Como o idioma padrão é definido](#5-como-o-idioma-padrão-é-definido)
 6. [Persistência com SharedPreferences](#6-persistência-com-sharedpreferences)
-7. [Fluxo completo: do início do app à troca de idioma](#7-fluxo-completo-do-início-do-app-à-troca-de-idioma)
-8. [Como adicionar um novo idioma](#8-como-adicionar-um-novo-idioma)
-9. [Referências](#9-referências)
-10. [Screenshots](#10-screenshots)
+7. [Injeção de dependências com Service Locator](#7-injeção-de-dependências-com-service-locator)
+8. [Fluxo completo: do início do app à troca de idioma](#8-fluxo-completo-do-início-do-app-à-troca-de-idioma)
+9. [Como adicionar um novo idioma](#9-como-adicionar-um-novo-idioma)
+10. [Referências](#10-referências)
+11. [Screenshots](#11-screenshots)
 
 ---
 
@@ -23,8 +24,12 @@ Projeto de referência que demonstra como implementar **internacionalização (l
 
 ```
 lib/
-├── main.dart                          # Ponto de entrada; composição das dependências
-├── app.dart                           # Widget raiz (MaterialApp)
+├── main.dart                          # Ponto de entrada; inicializa dependências e ServiceLocator
+├── app.dart                           # Widget raiz (MaterialApp) — StatelessWidget
+│
+├── core/
+│   └── di/
+│       └── service_locator.dart       # Injetor de dependências (Singleton)
 │
 ├── data/
 │   ├── repositories/
@@ -36,12 +41,12 @@ lib/
 │   └── app_locales.dart              # Mapa de idiomas e funções utilitárias de conversão de Locale
 │
 ├── routing/
-│   └── app_routes.dart               # Rotas nomeadas do app
+│   └── app_routes.dart               # Rotas nomeadas do app (sem parâmetros)
 │
 ├── ui/
 │   ├── app/
 │   │   └── view_model/
-│   │       └── app_view_model.dart   # ViewModel do widget raiz
+│   │       └── app_view_model.dart   # Fonte da verdade do estado do idioma (ChangeNotifier)
 │   ├── core/
 │   │   └── widgets/
 │   │       └── app_dropdown_menu.dart # Widget de seleção reutilizável
@@ -49,7 +54,7 @@ lib/
 │       ├── view_model/
 │       │   └── home_view_model.dart  # Lógica de apresentação da tela inicial
 │       └── widgets/
-│           └── home_screen.dart      # Tela inicial
+│           └── home_screen.dart      # Tela inicial (sem parâmetros de dependência)
 │
 └── l10n/
     ├── context_l10n.dart             # Extensão de atalho para BuildContext
@@ -439,9 +444,132 @@ Essa separação respeita a **Clean Architecture**: a camada de Dados apenas lê
 
 ---
 
-## 7. Fluxo completo: do início do app à troca de idioma
+## 7. Injeção de dependências com Service Locator
 
-### 7.1 Inicialização
+### 7.1 O problema: prop-drilling
+
+Sem um mecanismo de injeção, a única forma de uma tela acessar o `AppViewModel` seria recebê-lo como parâmetro no construtor, que por sua vez precisaria ser passado pela rota, que precisaria recebê-lo do `App`, e assim por diante. Isso é chamado de **prop-drilling**: dependências atravessando camadas intermediárias apenas para chegarem a quem realmente as usa.
+
+### 7.2 A solução: Mini Service Locator (Singleton puro Dart)
+
+Um `ServiceLocator` é uma classe Singleton que guarda as instâncias globais do app. Qualquer arquivo pode acessar uma dependência diretamente, sem precisar que ela seja passada por parâmetros:
+
+```dart
+// lib/core/di/service_locator.dart
+class ServiceLocator {
+  ServiceLocator._();
+
+  static final ServiceLocator instance = ServiceLocator._();
+
+  late final LocaleRepository localeRepository;
+  late final AppViewModel appViewModel;
+
+  void setup({required LocaleRepository repository}) {
+    localeRepository = repository;
+    appViewModel = AppViewModel(localeRepository);
+  }
+}
+```
+
+| Elemento | Por quê |
+|---|---|
+| Construtor privado `_()` | Impede que terceiros criem novas instâncias com `ServiceLocator()` |
+| `static final instance` | Garante que existe exatamente uma instância em todo o processo |
+| `late final` nas dependências | Garante que são atribuídas apenas uma vez e falham rápido se acessadas antes do `setup()` |
+| `setup()` separado do construtor | Permite inicializar com dados assíncronos antes de `runApp()` |
+
+### 7.3 Inicialização no `main()`
+
+O `setup()` é chamado após o carregamento assíncrono do `SharedPreferences`, antes de `runApp()`. A partir daí, o `App` não precisa mais receber dependências por parâmetro:
+
+```dart
+// lib/main.dart
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final service = LocaleService(prefs);
+  final repository = LocaleRepository(service);
+  ServiceLocator.instance.setup(repository: repository);
+  runApp(const App());
+}
+```
+
+### 7.4 Efeito cascata na arquitetura
+
+Com o `ServiceLocator`, cada camada acessa apenas o que precisa, sem intermediários:
+
+**`App`** — convertido para `StatelessWidget`. Busca o `AppViewModel` diretamente do locator:
+
+```dart
+// lib/app.dart
+class App extends StatelessWidget {
+  const App({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final appViewModel = ServiceLocator.instance.appViewModel;
+    return ListenableBuilder(
+      listenable: appViewModel,
+      builder: (context, _) {
+        return MaterialApp(
+          locale: appViewModel.locale,
+          routes: AppRoutes.routes,
+          // ...
+        );
+      },
+    );
+  }
+}
+```
+
+**`AppRoutes`** — não recebe mais parâmetros. Apenas define qual widget abrir:
+
+```dart
+// lib/routing/app_routes.dart
+abstract class AppRoutes {
+  static const home = '/';
+
+  static Map<String, WidgetBuilder> get routes {
+    return {home: (_) => const HomeScreen()};
+  }
+}
+```
+
+**`HomeViewModel`** — resolve sua própria dependência sem precisar que a rota a injete:
+
+```dart
+// lib/ui/home/view_model/home_view_model.dart
+class HomeViewModel extends ChangeNotifier {
+  HomeViewModel() {
+    _appViewModel.addListener(notifyListeners);
+  }
+
+  final AppViewModel _appViewModel = ServiceLocator.instance.appViewModel;
+
+  // ...
+}
+```
+
+### 7.5 Testabilidade
+
+Para testes unitários do `HomeViewModel`, basta chamar `setup()` com um mock antes do teste:
+
+```dart
+setUp(() {
+  final mockRepository = MockLocaleRepository();
+  ServiceLocator.instance.setup(repository: mockRepository);
+});
+```
+
+### 7.6 Caminho para o `get_it`
+
+Se o projeto crescer e o `ServiceLocator` manual se tornar limitante (por exemplo, para instâncias com escopos diferentes ou registro lazy), a migração para o `get_it` é quase mecânica: `ServiceLocator.instance.appViewModel` vira `GetIt.I<AppViewModel>()`. A lógica dos ViewModels não precisa mudar.
+
+---
+
+## 8. Fluxo completo: do início do app à troca de idioma
+
+### 8.1 Inicialização
 
 ```
 main()
@@ -455,17 +583,19 @@ main()
   ├─ LocaleRepository(service)
   │     └─ apenas delega load/save ao LocaleService (stateless)
   │
-  └─ runApp(App(localeRepository: repository))
-        │
-        └─ App cria AppViewModel(localeRepository)
-              └─ AppViewModel chama localeRepository.load() no construtor
-                    └─ lê a chave "locale" do SharedPreferences
-                          ├─ se existir → guarda o Locale salvo em _locale
-                          └─ se não existir → guarda Locale('en')
+  ├─ ServiceLocator.instance.setup(repository: repository)
+  │     └─ cria AppViewModel(localeRepository)
+  │           └─ AppViewModel chama localeRepository.load() no construtor
+  │                 └─ lê a chave "locale" do SharedPreferences
+  │                       ├─ se existir → guarda o Locale salvo em _locale
+  │                       └─ se não existir → guarda Locale('en')
+  │
+  └─ runApp(const App())
+        └─ App acessa ServiceLocator.instance.appViewModel
               └─ MaterialApp já renderiza com o locale correto
 ```
 
-### 7.2 Troca de idioma pelo usuário
+### 8.2 Troca de idioma pelo usuário
 
 ```
 Usuário seleciona "Português" no dropdown
@@ -490,7 +620,7 @@ Usuário seleciona "Português" no dropdown
   └─ Flutter reconstrói toda a árvore de widgets com as strings em português
 ```
 
-### 7.3 Diagrama de camadas
+### 8.3 Diagrama de camadas
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -510,11 +640,17 @@ Usuário seleciona "Português" no dropdown
 │                  │                                   │
 │                  └──► SharedPreferences              │
 └─────────────────────────────────────────────────────┘
+
+             ┌──────────────────────────┐
+             │  ServiceLocator (DI)     │  ← acessa qualquer camada
+             │  .appViewModel           │     sem prop-drilling
+             │  .localeRepository       │
+             └──────────────────────────┘
 ```
 
 ---
 
-## 8. Como adicionar um novo idioma
+## 9. Como adicionar um novo idioma
 
 Este é um processo de **4 etapas**. Vamos usar o **francês** (`fr`) como exemplo.
 
@@ -615,7 +751,7 @@ O `AppViewModel` passará o `Locale('pt', 'BR')` para o `LocaleRepository`, que 
 
 ---
 
-## 9. Referências
+## 10. Referências
 
 | Recurso | Link |
 |---|---|
@@ -626,10 +762,11 @@ O `AppViewModel` passará o `Locale('pt', 'BR')` para o `LocaleRepository`, que 
 | Arquitetura MVVM recomendada pelo Flutter | [docs.flutter.dev/app-architecture/guide](https://docs.flutter.dev/app-architecture/guide) |
 | Formato ARB (Application Resource Bundle) | [github.com/google/app-resource-bundle](https://github.com/google/app-resource-bundle/wiki/ApplicationResourceBundleSpecification) |
 | `gen-l10n` — referência da ferramenta de geração | [docs.flutter.dev/ui/accessibility-and-internationalization/internationalization#configuring-the-l10n-yaml-file](https://docs.flutter.dev/ui/accessibility-and-internationalization/internationalization#configuring-the-l10n-yaml-file) |
+| `get_it` — Service Locator pub.dev | [pub.dev/packages/get_it](https://pub.dev/packages/get_it) |
 
 ---
 
-## 10. Screenshots
+## 11. Screenshots
 
 <p>
   <img width="243" height="517" alt="image" src="https://github.com/user-attachments/assets/e860cc19-a882-499f-a74c-afa01da22e2a" />

@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_translate_example/l10n/context_l10n.dart';
 import 'package:flutter_translate_example/ui/core/widgets/app_dropdown_menu.dart';
 
-import '../../app/view_model/app_view_model.dart';
 import '../view_model/home_view_model.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.appViewModel});
-
-  final AppViewModel appViewModel;
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -20,7 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = HomeViewModel(widget.appViewModel);
+    _viewModel = HomeViewModel();
   }
 
   @override

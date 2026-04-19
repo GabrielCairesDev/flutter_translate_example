@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_translate_example/domain/app_locales.dart';
 
+import '../../../core/di/service_locator.dart';
 import '../../app/view_model/app_view_model.dart';
 
 class HomeViewModel extends ChangeNotifier {
-  HomeViewModel(this._appViewModel) {
+  HomeViewModel() {
     _appViewModel.addListener(notifyListeners);
   }
 
-  final AppViewModel _appViewModel;
+  final AppViewModel _appViewModel = ServiceLocator.instance.appViewModel;
 
   List<String> get availableLocales => appLocaleLabels.values.toList();
 
