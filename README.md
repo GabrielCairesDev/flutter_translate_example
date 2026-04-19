@@ -1,6 +1,6 @@
 # Flutter Translate Example
 
-Projeto de referência que demonstra como implementar **internacionalização (l10n)** com a solução oficial do Flutter (`flutter_localizations` + `gen-l10n`) combinada com **persistência de idioma** via `shared_preferences`, seguindo a arquitetura **MVVM** recomendada pela equipe Flutter.
+Projeto de referência que demonstra como implementar **internacionalização (l10n)** com a solução oficial do Flutter (`flutter_localizations` + `gen-l10n`) combinada com **persistência de idioma** via `shared_preferences`, seguindo a arquitetura **MVVM** recomendada pela equipe do Flutter.
 
 ---
 
@@ -14,6 +14,8 @@ Projeto de referência que demonstra como implementar **internacionalização (l
 6. [Persistência com SharedPreferences](#6-persistência-com-sharedpreferences)
 7. [Fluxo completo: do início do app à troca de idioma](#7-fluxo-completo-do-início-do-app-à-troca-de-idioma)
 8. [Como adicionar um novo idioma](#8-como-adicionar-um-novo-idioma)
+9. [Referências](#9-referências)
+10. [Screenshots](#10-screenshots)
 
 ---
 
@@ -74,7 +76,7 @@ flutter:
   generate: true      # Habilita a geração automática de código l10n
 ```
 
-> **Por que `intl: any`?** O SDK do Flutter já trava a versão do `intl` internamente via `flutter_localizations`. Usar `any` evita conflitos de versão.
+> **Por que `intl: any`?** O SDK do Flutter já fixa a versão do `intl` internamente via `flutter_localizations`. Usar `any` evita conflitos de versão.
 
 ---
 
@@ -118,7 +120,7 @@ Após rodar `flutter pub get` (ou `flutter run`), o Flutter gera automaticamente
 - `app_localizations_pt.dart` — implementação para português
 - `app_localizations_zh.dart` — implementação para chinês
 
-> **Nunca edite os arquivos gerados.** Eles são sobrescritos a cada build. Edite apenas os `.arb`.
+> **Nunca edite os arquivos gerados se você usar o `gen-l10n` automático.** Eles são sobrescritos a cada build. Neste projeto, os arquivos `app_localizations*.dart` são mantidos manualmente — edite apenas os `.arb` para adicionar ou alterar traduções.
 
 ### 3.4 Registrando os delegates no `MaterialApp`
 
@@ -363,7 +365,7 @@ void main() async {
 }
 ```
 
-Esse padrão garante que o idioma correto é aplicado já no primeiro frame, sem piscar para o idioma padrão e depois mudar.
+Esse padrão garante que o idioma correto é aplicado já no primeiro frame, sem exibir brevemente o idioma padrão antes de aplicar o idioma salvo pelo usuário.
 
 ### 6.4 `LocaleRepository`: estado em memória + persistência
 
@@ -427,7 +429,7 @@ Usuário seleciona "Português" no dropdown
   │
   ├─ LocaleRepository.setLocale(Locale('pt'))
   │     ├─ atualiza _locale em memória
-  │     ├─ notifyListeners() → acorda todos os ouvintes
+  │     ├─ notifyListeners() → notifica todos os ouvintes
   │     └─ service.save(Locale('pt')) → grava "pt" no SharedPreferences
   │
   ├─ AppViewModel e HomeViewModel recebem a notificação
@@ -558,5 +560,24 @@ const Map<String, String> appLocaleLabels = <String, String>{
 O repositório serializará `Locale('pt', 'BR')` como `"pt_BR"` e desserializará corretamente na próxima inicialização.
 
 ---
-<img width="243" height="517" alt="image" src="https://github.com/user-attachments/assets/e860cc19-a882-499f-a74c-afa01da22e2a" />
-<img width="248" height="514" alt="image" src="https://github.com/user-attachments/assets/3ceb35a7-f20e-47ea-832d-7daeb67c1212" />
+
+## 9. Referências
+
+| Recurso | Link |
+|---|---|
+| Internacionalização Flutter (l10n) — guia oficial | [flutter.dev/to/internationalization](https://flutter.dev/to/internationalization) |
+| `flutter_localizations` — documentação da API | [api.flutter.dev/flutter/flutter_localizations](https://api.flutter.dev/flutter/flutter_localizations/flutter_localizations-library.html) |
+| `intl` — pub.dev | [pub.dev/packages/intl](https://pub.dev/packages/intl) |
+| `shared_preferences` — pub.dev | [pub.dev/packages/shared_preferences](https://pub.dev/packages/shared_preferences) |
+| Arquitetura MVVM recomendada pelo Flutter | [docs.flutter.dev/app-architecture/guide](https://docs.flutter.dev/app-architecture/guide) |
+| Formato ARB (Application Resource Bundle) | [github.com/google/app-resource-bundle](https://github.com/google/app-resource-bundle/wiki/ApplicationResourceBundleSpecification) |
+| `gen-l10n` — referência da ferramenta de geração | [docs.flutter.dev/ui/accessibility-and-internationalization/internationalization#configuring-the-l10n-yaml-file](https://docs.flutter.dev/ui/accessibility-and-internationalization/internationalization#configuring-the-l10n-yaml-file) |
+
+---
+
+## 10. Screenshots
+
+<p>
+  <img width="243" height="517" alt="image" src="https://github.com/user-attachments/assets/e860cc19-a882-499f-a74c-afa01da22e2a" />
+  <img width="248" height="514" alt="image" src="https://github.com/user-attachments/assets/3ceb35a7-f20e-47ea-832d-7daeb67c1212" />
+</p>
