@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_translate_example/data/repositories/locale_repository.dart';
 import 'package:flutter_translate_example/domain/app_locales.dart';
 
+import '../../app/view_model/app_view_model.dart';
+
 class HomeViewModel extends ChangeNotifier {
-  HomeViewModel(this._localeRepository) {
-    _localeRepository.addListener(notifyListeners);
+  HomeViewModel(this._appViewModel) {
+    _appViewModel.addListener(notifyListeners);
   }
 
-  final LocaleRepository _localeRepository;
+  final AppViewModel _appViewModel;
 
   List<String> get availableLocales => appLocaleLabels.values.toList();
 
   String get currentLocale {
-    final code = localeToCode(_localeRepository.locale);
+    final code = localeToCode(_appViewModel.locale);
     return appLocaleLabels[code] ?? appLocaleLabels.values.first;
   }
 
@@ -23,12 +24,12 @@ class HomeViewModel extends ChangeNotifier {
           orElse: () => appLocaleLabels.entries.first,
         )
         .key;
-    await _localeRepository.setLocale(localeFromCode(code));
+    await _appViewModel.setLocale(localeFromCode(code));
   }
 
   @override
   void dispose() {
-    _localeRepository.removeListener(notifyListeners);
+    _appViewModel.removeListener(notifyListeners);
     super.dispose();
   }
 }

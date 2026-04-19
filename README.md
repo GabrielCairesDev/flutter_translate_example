@@ -28,7 +28,7 @@ lib/
 │
 ├── data/
 │   ├── repositories/
-│   │   └── locale_repository.dart    # Fonte da verdade do idioma (ChangeNotifier)
+│   │   └── locale_repository.dart    # Repositório de idioma (stateless)
 │   └── services/
 │       └── locale_service.dart       # Acesso ao SharedPreferences (stateless)
 │
@@ -129,9 +129,9 @@ Após rodar `flutter pub get` (ou `flutter run`), o Flutter gera automaticamente
 MaterialApp(
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   supportedLocales: AppLocalizations.supportedLocales,
-  locale: localeService.locale,
+  locale: _viewModel.locale,
   initialRoute: AppRoutes.home,
-  routes: AppRoutes.routes(localeService),
+  routes: AppRoutes.routes(_viewModel),
 )
 ```
 
@@ -143,7 +143,7 @@ MaterialApp(
 | `initialRoute` | Rota exibida na inicialização do app |
 | `routes` | Mapa de rotas nomeadas definido em `AppRoutes` |
 
-O `AppViewModel` escuta o `LocaleRepository` e expõe o `locale` atual. O `ListenableBuilder` envolve o `MaterialApp` para que qualquer mudança de idioma reconstrua o widget e aplique o novo `locale`:
+O `AppViewModel` é a **fonte da verdade** do estado do idioma em memória. O `ListenableBuilder` envolve o `MaterialApp` para que qualquer mudança de idioma reconstrua o widget e aplique o novo `locale`:
 
 ```dart
 // lib/app.dart
@@ -367,15 +367,34 @@ void main() async {
 
 Esse padrão garante que o idioma correto é aplicado já no primeiro frame, sem exibir brevemente o idioma padrão antes de aplicar o idioma salvo pelo usuário.
 
-### 6.4 `LocaleRepository`: estado em memória + persistência
+### 6.4 `LocaleRepository`: acesso stateless aos dados
+
+O `LocaleRepository` pertence à camada de Dados e é completamente stateless — ele apenas delega operações de leitura e escrita ao `LocaleService`, sem guardar estado em memória:
 
 ```dart
 // lib/data/repositories/locale_repository.dart
-class LocaleRepository extends ChangeNotifier {
-  // O idioma já carregado do serviço é definido na inicialização
-  LocaleRepository(this._service) : _locale = _service.load();
+class LocaleRepository {
+  LocaleRepository(this._service);
 
   final LocaleService _service;
+
+  Locale load() => _service.load();
+
+  Future<void> save(Locale locale) => _service.save(locale);
+}
+```
+
+### 6.5 `AppViewModel`: fonte da verdade do estado do idioma
+
+O estado do idioma em memória vive na camada de Apresentação, dentro do `AppViewModel`. Ele carrega o valor inicial do repositório e notifica a UI sempre que o idioma muda:
+
+```dart
+// lib/ui/app/view_model/app_view_model.dart
+class AppViewModel extends ChangeNotifier {
+  AppViewModel(this._localeRepository)
+      : _locale = _localeRepository.load();
+
+  final LocaleRepository _localeRepository;
   Locale _locale;
 
   Locale get locale => _locale;
@@ -384,12 +403,14 @@ class LocaleRepository extends ChangeNotifier {
     if (_locale == locale) return; // evita notificações desnecessárias
     _locale = locale;
     notifyListeners(); // atualiza a UI imediatamente
-    await _service.save(locale); // persiste em background
+    await _localeRepository.save(locale); // persiste em background
   }
 }
 ```
 
-**Detalhe importante:** `notifyListeners()` é chamado **antes** de `_service.save()`. Isso faz a UI responder de forma instantânea, enquanto a escrita no disco acontece de forma assíncrona em seguida.
+**Detalhe importante:** `notifyListeners()` é chamado **antes** de `_localeRepository.save()`. Isso faz a UI responder de forma instantânea, enquanto a escrita no disco acontece de forma assíncrona em seguida.
+
+Essa separação respeita a **Clean Architecture**: a camada de Dados apenas lê e grava dados; quem mantém o estado reativo e notifica a UI é a camada de Apresentação.
 
 ---
 
@@ -407,13 +428,16 @@ main()
   │     └─ encapsula o acesso ao SharedPreferences (stateless)
   │
   ├─ LocaleRepository(service)
-  │     └─ chama service.load() no construtor
-  │           └─ lê a chave "locale" do SharedPreferences
-  │                 ├─ se existir → devolve o Locale salvo
-  │                 └─ se não existir → devolve Locale('en')
+  │     └─ apenas delega load/save ao LocaleService (stateless)
   │
   └─ runApp(App(localeRepository: repository))
-        └─ MaterialApp já renderiza com o locale correto
+        │
+        └─ App cria AppViewModel(localeRepository)
+              └─ AppViewModel chama localeRepository.load() no construtor
+                    └─ lê a chave "locale" do SharedPreferences
+                          ├─ se existir → guarda o Locale salvo em _locale
+                          └─ se não existir → guarda Locale('en')
+              └─ MaterialApp já renderiza com o locale correto
 ```
 
 ### 7.2 Troca de idioma pelo usuário
@@ -425,15 +449,18 @@ Usuário seleciona "Português" no dropdown
   │
   ├─ HomeViewModel.setLocale("Português")
   │     ├─ converte o label para o código: "Português" → "pt"
-  │     └─ chama localeRepository.setLocale(Locale('pt'))
+  │     └─ chama appViewModel.setLocale(Locale('pt'))
   │
-  ├─ LocaleRepository.setLocale(Locale('pt'))
+  ├─ AppViewModel.setLocale(Locale('pt'))
   │     ├─ atualiza _locale em memória
   │     ├─ notifyListeners() → notifica todos os ouvintes
-  │     └─ service.save(Locale('pt')) → grava "pt" no SharedPreferences
+  │     └─ localeRepository.save(Locale('pt')) → grava "pt" no SharedPreferences
   │
-  ├─ AppViewModel e HomeViewModel recebem a notificação
-  │     └─ ListenableBuilder reconstrói o MaterialApp com locale: Locale('pt')
+  ├─ App (ListenableBuilder) recebe a notificação do AppViewModel
+  │     └─ reconstrói o MaterialApp com locale: Locale('pt')
+  │
+  ├─ HomeScreen (ListenableBuilder) recebe a notificação via HomeViewModel
+  │     └─ atualiza o dropdown para refletir o idioma selecionado
   │
   └─ Flutter reconstrói toda a árvore de widgets com as strings em português
 ```
@@ -442,15 +469,17 @@ Usuário seleciona "Português" no dropdown
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                     UI Layer                         │
-│  App  ──►  AppViewModel                             │
-│  HomeScreen  ──►  HomeViewModel                     │
-│  (widgets)        (ChangeNotifier)                   │
+│                  Presentation Layer                  │
+│  App  ──►  AppViewModel (ChangeNotifier)            │
+│               ↑ fonte da verdade do estado           │
+│  HomeScreen  ──►  HomeViewModel (ChangeNotifier)    │
+│                       │ ouve e delega a              │
+│                       └──► AppViewModel              │
 └────────────────────────┬────────────────────────────┘
                          │ usa
 ┌────────────────────────▼────────────────────────────┐
-│                   Data Layer                         │
-│  LocaleRepository (ChangeNotifier) ← fonte da verdade│
+│                    Data Layer                        │
+│  LocaleRepository (stateless)                       │
 │       │                                              │
 │       └──► LocaleService (stateless)                │
 │                  │                                   │
@@ -557,7 +586,7 @@ const Map<String, String> appLocaleLabels = <String, String>{
 };
 ```
 
-O repositório serializará `Locale('pt', 'BR')` como `"pt_BR"` e desserializará corretamente na próxima inicialização.
+O `AppViewModel` passará o `Locale('pt', 'BR')` para o `LocaleRepository`, que o serializará como `"pt_BR"` via `LocaleService` e o desserializará corretamente na próxima inicialização.
 
 ---
 

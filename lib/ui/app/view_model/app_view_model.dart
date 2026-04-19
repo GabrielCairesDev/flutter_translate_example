@@ -3,17 +3,18 @@ import 'package:flutter/widgets.dart';
 import '../../../data/repositories/locale_repository.dart';
 
 class AppViewModel extends ChangeNotifier {
-  AppViewModel(this._localeRepository) {
-    _localeRepository.addListener(notifyListeners);
-  }
+  AppViewModel(this._localeRepository)
+      : _locale = _localeRepository.load();
 
   final LocaleRepository _localeRepository;
+  Locale _locale;
 
-  Locale get locale => _localeRepository.locale;
+  Locale get locale => _locale;
 
-  @override
-  void dispose() {
-    _localeRepository.removeListener(notifyListeners);
-    super.dispose();
+  Future<void> setLocale(Locale locale) async {
+    if (_locale == locale) return;
+    _locale = locale;
+    notifyListeners();
+    await _localeRepository.save(locale);
   }
 }

@@ -40,7 +40,7 @@ class _AppState extends State<App> {
           supportedLocales: AppLocalizations.supportedLocales,
           locale: _viewModel.locale,
           initialRoute: AppRoutes.home,
-          routes: AppRoutes.routes(widget.localeRepository),
+          routes: AppRoutes.routes(_viewModel),
         );
       },
     );
