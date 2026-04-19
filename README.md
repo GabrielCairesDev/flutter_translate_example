@@ -327,7 +327,7 @@ Locale('zh')       → "zh"
 
 ### 6.2 `LocaleService`: salvar e carregar (stateless)
 
-O serviço delega a serialização para as funções de `app_locales.dart`, mantendo-se simples e sem estado:
+O serviço delega a serialização para as funções de `app_locales.dart`. Como operações de I/O podem falhar (por exemplo, falta de espaço em disco), ambos os métodos envolvem a chamada em `try-catch`. Os erros são reportados via `FlutterError.reportError`, que em produção pode ser interceptado por ferramentas como Crashlytics através do `FlutterError.onError`:
 
 ```dart
 // lib/data/services/locale_service.dart
@@ -340,15 +340,40 @@ class LocaleService {
   final SharedPreferences _prefs;
 
   Locale load() {
-    final saved = _prefs.getString(_key);
-    return saved != null ? localeFromCode(saved) : _defaultLocale;
+    try {
+      final saved = _prefs.getString(_key);
+      return saved != null ? localeFromCode(saved) : _defaultLocale;
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'LocaleService',
+        context: ErrorDescription('ao carregar o locale do SharedPreferences'),
+      ));
+      return _defaultLocale;
+    }
   }
 
   Future<void> save(Locale locale) async {
-    await _prefs.setString(_key, localeToCode(locale));
+    try {
+      await _prefs.setString(_key, localeToCode(locale));
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'LocaleService',
+        context: ErrorDescription('ao salvar o locale do SharedPreferences'),
+      ));
+    }
   }
 }
 ```
+
+**Por que `FlutterError.reportError` e não apenas `print`?** O `FlutterError.reportError` é o canal oficial do Flutter para reportar erros não fatais. Em modo debug ele imprime no console com formatação detalhada; em produção, qualquer handler registrado em `FlutterError.onError` (como o `FirebaseCrashlytics.instance.recordFlutterFatalError`) recebe o erro automaticamente. Usar `print` ou `debugPrint` descartaria essas integrações.
+
+**Comportamento em caso de falha:**
+- `load()` — retorna `_defaultLocale` (inglês), garantindo que o app sempre inicializa em um estado válido.
+- `save()` — a UI já foi atualizada antes dessa chamada (via `notifyListeners()` no `AppViewModel`), então o app continua funcionando normalmente; apenas a preferência não será persistida para a próxima sessão.
 
 ### 6.3 Por que o `SharedPreferences` é inicializado no `main`
 
