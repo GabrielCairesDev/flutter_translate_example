@@ -1,5 +1,3 @@
-import 'dart:collection';
-
 import 'package:flutter/material.dart';
 
 class AppDropdownMenu extends StatefulWidget {
@@ -20,6 +18,13 @@ class AppDropdownMenu extends StatefulWidget {
 
 class _AppDropdownMenuState extends State<AppDropdownMenu> {
   late String _selected = widget.initialValue;
+  late List<DropdownMenuEntry<String>> _menuEntries;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateMenuEntries();
+  }
 
   @override
   void didUpdateWidget(AppDropdownMenu oldWidget) {
@@ -27,24 +32,29 @@ class _AppDropdownMenuState extends State<AppDropdownMenu> {
     if (oldWidget.initialValue != widget.initialValue) {
       _selected = widget.initialValue;
     }
+    if (oldWidget.list != widget.list) {
+      _updateMenuEntries();
+    }
+  }
+
+  void _updateMenuEntries() {
+    _menuEntries = widget.list
+        .map((name) => DropdownMenuEntry<String>(value: name, label: name))
+        .toList(growable: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final menuEntries = UnmodifiableListView<DropdownMenuEntry<String>>(
-      widget.list.map((name) => DropdownMenuEntry<String>(value: name, label: name)),
-    );
-
     return DropdownMenu<String>(
       initialSelection: _selected,
       enableFilter: false,
       requestFocusOnTap: false,
       onSelected: (String? value) {
-        if (value == null) return;
+        if (value == null || value == _selected) return;
         setState(() => _selected = value);
         widget.onSelected(value);
       },
-      dropdownMenuEntries: menuEntries,
+      dropdownMenuEntries: _menuEntries,
     );
   }
 }

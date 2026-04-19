@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_translate_example/core/di/service_locator.dart';
 import 'package:flutter_translate_example/l10n/context_l10n.dart';
 import 'package:flutter_translate_example/ui/core/widgets/app_dropdown_menu.dart';
 
@@ -17,7 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = HomeViewModel();
+    _viewModel = HomeViewModel(ServiceLocator.instance.appViewModel);
   }
 
   @override
@@ -40,8 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(context.l10n.helloWorld),
                 AppDropdownMenu(
                   list: _viewModel.availableLocales,
-                  initialValue: _viewModel.currentLocale,
-                  onSelected: (value) => _viewModel.setLocale(value),
+                  initialValue: _viewModel.currentLocaleLabel,
+                  onSelected: (value) => _viewModel.setLocaleByLabel(value),
                 ),
               ],
             ),

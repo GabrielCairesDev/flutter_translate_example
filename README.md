@@ -163,6 +163,8 @@ ListenableBuilder(
 )
 ```
 
+O widget `AppDropdownMenu` cacheia as entradas do menu em `_menuEntries`, calculadas uma única vez no `initState` e recalculadas no `didUpdateWidget` somente quando a lista de opções muda. Isso evita a reconstrução desnecessária das entradas a cada `build` e impede reações duplicadas ao selecionar a opção já ativa (`if (value == null || value == _selected) return`).
+
 ### 3.5 Acessando as strings traduzidas na UI
 
 Uma extensão sobre `BuildContext` elimina o boilerplate de `AppLocalizations.of(context)!`:
@@ -378,7 +380,7 @@ class LocaleService {
 
 **Comportamento em caso de falha:**
 - `load()` — retorna `_defaultLocale` (inglês), garantindo que o app sempre inicializa em um estado válido.
-- `save()` — a UI já foi atualizada antes dessa chamada (via `notifyListeners()` no `AppViewModel`), então o app continua funcionando normalmente; apenas a preferência não será persistida para a próxima sessão.
+- `save()` — a exceção é capturada internamente e reportada via `FlutterError.reportError`. Como o erro não é repropagado, o `AppViewModel` continua o fluxo normalmente (atualiza `_locale` e chama `notifyListeners()`); apenas a preferência não será persistida para a próxima sessão.
 
 ### 6.3 Por que o `SharedPreferences` é inicializado no `main`
 
@@ -421,8 +423,7 @@ O estado do idioma em memória vive na camada de Apresentação, dentro do `AppV
 ```dart
 // lib/ui/app/view_model/app_view_model.dart
 class AppViewModel extends ChangeNotifier {
-  AppViewModel(this._localeRepository)
-      : _locale = _localeRepository.load();
+  AppViewModel(this._localeRepository) : _locale = _localeRepository.load();
 
   final LocaleRepository _localeRepository;
   Locale _locale;
@@ -431,14 +432,16 @@ class AppViewModel extends ChangeNotifier {
 
   Future<void> setLocale(Locale locale) async {
     if (_locale == locale) return; // evita notificações desnecessárias
+
+    await _localeRepository.save(locale); // persiste primeiro
     _locale = locale;
-    notifyListeners(); // atualiza a UI imediatamente
-    await _localeRepository.save(locale); // persiste em background
+
+    notifyListeners(); // atualiza a UI após a persistência
   }
 }
 ```
 
-**Detalhe importante:** `notifyListeners()` é chamado **antes** de `_localeRepository.save()`. Isso faz a UI responder de forma instantânea, enquanto a escrita no disco acontece de forma assíncrona em seguida.
+**Detalhe importante:** `_localeRepository.save()` é chamado **antes** de `notifyListeners()`. Isso garante que o estado persistido é sempre consistente com o estado em memória antes de a UI ser notificada. Como o `LocaleService` captura internamente qualquer exceção de I/O (via `try-catch`) e não a repropaga, a chamada retorna normalmente mesmo em caso de falha, e a UI ainda é atualizada.
 
 Essa separação respeita a **Clean Architecture**: a camada de Dados apenas lê e grava dados; quem mantém o estado reativo e notifica a UI é a camada de Apresentação.
 
@@ -535,24 +538,45 @@ abstract class AppRoutes {
 }
 ```
 
-**`HomeViewModel`** — resolve sua própria dependência sem precisar que a rota a injete:
+**`HomeViewModel`** — recebe o `AppViewModel` por injeção no construtor, mantendo-se testável e desacoplado do `ServiceLocator`:
 
 ```dart
 // lib/ui/home/view_model/home_view_model.dart
 class HomeViewModel extends ChangeNotifier {
-  HomeViewModel() {
+  HomeViewModel(this._appViewModel) {
     _appViewModel.addListener(notifyListeners);
   }
 
-  final AppViewModel _appViewModel = ServiceLocator.instance.appViewModel;
+  final AppViewModel _appViewModel;
 
   // ...
 }
 ```
 
+**`HomeScreen`** — resolve a dependência via `ServiceLocator` e a injeta no `HomeViewModel` durante o `initState`:
+
+```dart
+// lib/ui/home/widgets/home_screen.dart
+@override
+void initState() {
+  super.initState();
+  _viewModel = HomeViewModel(ServiceLocator.instance.appViewModel);
+}
+```
+
 ### 7.5 Testabilidade
 
-Para testes unitários do `HomeViewModel`, basta chamar `setup()` com um mock antes do teste:
+Como o `HomeViewModel` agora recebe o `AppViewModel` via construtor, testá-lo isoladamente é direto — basta instanciá-lo com um mock, sem precisar configurar o `ServiceLocator`:
+
+```dart
+test('muda o idioma corretamente', () async {
+  final mockAppViewModel = MockAppViewModel();
+  final viewModel = HomeViewModel(mockAppViewModel);
+  // ...
+});
+```
+
+Para testes que envolvem o `AppViewModel` e sua camada de dados, basta chamar `setup()` com um repositório mockado:
 
 ```dart
 setUp(() {
@@ -602,14 +626,14 @@ Usuário seleciona "Português" no dropdown
   │
   ├─ HomeScreen.onSelected("Português")
   │
-  ├─ HomeViewModel.setLocale("Português")
+  ├─ HomeViewModel.setLocaleByLabel("Português")
   │     ├─ converte o label para o código: "Português" → "pt"
   │     └─ chama appViewModel.setLocale(Locale('pt'))
   │
   ├─ AppViewModel.setLocale(Locale('pt'))
+  │     ├─ localeRepository.save(Locale('pt')) → grava "pt" no SharedPreferences
   │     ├─ atualiza _locale em memória
-  │     ├─ notifyListeners() → notifica todos os ouvintes
-  │     └─ localeRepository.save(Locale('pt')) → grava "pt" no SharedPreferences
+  │     └─ notifyListeners() → notifica todos os ouvintes
   │
   ├─ App (ListenableBuilder) recebe a notificação do AppViewModel
   │     └─ reconstrói o MaterialApp com locale: Locale('pt')
