@@ -6,7 +6,7 @@ import 'core/di/service_locator.dart';
 import 'data/repositories/locale_repository.dart';
 import 'data/services/locale_service.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final service = LocaleService(prefs);

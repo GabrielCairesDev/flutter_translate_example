@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../ui/home/widgets/home_screen.dart';
 
-abstract class AppRoutes {
-  static const home = '/';
+abstract final class AppRoutes {
+  static const String home = '/';
 
-  static Map<String, WidgetBuilder> get routes {
-    return {home: (_) => const HomeScreen()};
-  }
+  static final Map<String, WidgetBuilder> routes = {
+    home: (_) => const HomeScreen(),
+  };
 }

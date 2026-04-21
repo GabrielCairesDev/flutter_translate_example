@@ -9,7 +9,11 @@ class HomeViewModel extends ChangeNotifier {
 
   final AppViewModel _appViewModel;
 
-  List<String> get availableLocales => appLocaleLabels.values.toList();
+  static final List<String> _availableLocales = appLocaleLabels.values.toList(
+    growable: false,
+  );
+
+  List<String> get availableLocales => _availableLocales;
 
   String get currentLocaleLabel {
     final code = localeToCode(_appViewModel.locale);

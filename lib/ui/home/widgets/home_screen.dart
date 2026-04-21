@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(context.l10n.helloWorld),
                 AppDropdownMenu(
                   list: _viewModel.availableLocales,
-                  initialValue: _viewModel.currentLocaleLabel,
+                  selectedValue: _viewModel.currentLocaleLabel,
                   onSelected: (value) => _viewModel.setLocaleByLabel(value),
                 ),
               ],
