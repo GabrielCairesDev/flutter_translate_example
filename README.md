@@ -386,7 +386,7 @@ O método `SharedPreferences.getInstance()` é assíncrono. Para que o idioma j�
 
 ```dart
 // lib/main.dart
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized(); // necessário antes de qualquer await
   final prefs = await SharedPreferences.getInstance();
   final service = LocaleService(prefs);
@@ -485,7 +485,7 @@ O `setup()` é chamado após o carregamento assíncrono do `SharedPreferences`, 
 
 ```dart
 // lib/main.dart
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final service = LocaleService(prefs);
@@ -527,12 +527,12 @@ class App extends StatelessWidget {
 
 ```dart
 // lib/routing/app_routes.dart
-abstract class AppRoutes {
-  static const home = '/';
+abstract final class AppRoutes {
+  static const String home = '/';
 
-  static Map<String, WidgetBuilder> get routes {
-    return {home: (_) => const HomeScreen()};
-  }
+  static final Map<String, WidgetBuilder> routes = {
+    home: (_) => const HomeScreen(),
+  };
 }
 ```
 
