@@ -568,28 +568,7 @@ void initState() {
 }
 ```
 
-### 7.5 Testabilidade
-
-Como o `HomeViewModel` agora recebe o `AppViewModel` via construtor, testá-lo isoladamente é direto — basta instanciá-lo com um mock, sem precisar configurar o `ServiceLocator`:
-
-```dart
-test('muda o idioma corretamente', () async {
-  final mockAppViewModel = MockAppViewModel();
-  final viewModel = HomeViewModel(mockAppViewModel);
-  // ...
-});
-```
-
-Para testes que envolvem o `AppViewModel` e sua camada de dados, basta chamar `setup()` com um repositório mockado:
-
-```dart
-setUp(() {
-  final mockRepository = MockLocaleRepository();
-  ServiceLocator.instance.setup(repository: mockRepository);
-});
-```
-
-### 7.6 Caminho para o `get_it`
+### 7.5 Caminho para o `get_it`
 
 Se o projeto crescer e o `ServiceLocator` manual se tornar limitante (por exemplo, para instâncias com escopos diferentes ou registro lazy), a migração para o `get_it` é quase mecânica: `ServiceLocator.instance.appViewModel` vira `GetIt.I<AppViewModel>()`. A lógica dos ViewModels não precisa mudar.
 
