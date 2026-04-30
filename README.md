@@ -8,7 +8,7 @@ Projeto de referência que demonstra como implementar **internacionalização (l
 
 1. [Estrutura do projeto](#1-estrutura-do-projeto)
 2. [Dependências](#2-dependências)
-3. [Como a internacionalização foi configurada](#3-como-a-internacionalização-foi-configurada)
+3. [Como a internacionalização é configurada](#3-como-a-internacionalização-é-configurada)
 4. [Estrutura e uso dos arquivos de tradução (ARB)](#4-estrutura-e-uso-dos-arquivos-de-tradução-arb)
 5. [Como o idioma padrão é definido](#5-como-o-idioma-padrão-é-definido)
 6. [Persistência com SharedPreferences](#6-persistência-com-sharedpreferences)
@@ -89,7 +89,7 @@ flutter:
 
 ---
 
-## 3. Como a internacionalização foi configurada
+## 3. Como a internacionalização é configurada
 
 A configuração usa a solução **oficial** do Flutter: o comando `flutter gen-l10n`, que lê arquivos `.arb` e gera classes Dart automaticamente.
 
@@ -292,16 +292,16 @@ static const _defaultLocale = Locale('en');
 
 Locale load() {
   final saved = _prefs.getString(_key);
-  return saved != null ? localeFromCode(saved) : _defaultLocale; // <-- retorna inglês se nada foi salvo
+  return saved != null ? localeFromCode(saved) : _defaultLocale; // <-- retorna inglês se nada estiver salvo
 }
 ```
 
-**Regra:** na primeira execução do app, nenhuma preferência foi salva ainda, então `_prefs.getString('locale')` retorna `null` e o método devolve `Locale('en')` como padrão.
+**Regra:** na primeira execução do app, nenhuma preferência está salva ainda, então `_prefs.getString('locale')` retorna `null` e o método devolve `Locale('en')` como padrão.
 
 Para alterar o idioma padrão, basta mudar o valor da constante:
 
 ```dart
-static const _defaultLocale = Locale('pt'); // Agora o padrão é português
+static const _defaultLocale = Locale('pt'); // padrão: português
 ```
 
 ---
@@ -487,7 +487,7 @@ class ServiceLocator {
 
 ### 7.3 Inicialização no `main()`
 
-O `setup()` é chamado após o carregamento assíncrono do `SharedPreferences`, antes de `runApp()`. A partir daí, o `App` não precisa mais receber dependências por parâmetro:
+O `setup()` é chamado após o carregamento assíncrono do `SharedPreferences`, antes de `runApp()`. Com isso, o `App` não precisa receber dependências por parâmetro:
 
 ```dart
 // lib/main.dart
@@ -501,11 +501,11 @@ Future<void> main() async {
 }
 ```
 
-### 7.4 Efeito cascata na arquitetura
+### 7.4 Como o ServiceLocator organiza cada camada
 
 Com o `ServiceLocator`, cada camada acessa apenas o que precisa, sem intermediários:
 
-**`App`** — convertido para `StatelessWidget`. Busca o `AppViewModel` diretamente do locator:
+**`App`** — é um `StatelessWidget` que busca o `AppViewModel` diretamente do locator:
 
 ```dart
 // lib/app.dart
@@ -529,7 +529,7 @@ class App extends StatelessWidget {
 }
 ```
 
-**`AppRoutes`** — não recebe mais parâmetros. Apenas define qual widget abrir:
+**`AppRoutes`** — não recebe parâmetros. Apenas define qual widget abrir:
 
 ```dart
 // lib/routing/app_routes.dart
@@ -723,7 +723,7 @@ flutter gen-l10n
 
 O Flutter detectará o novo `app_fr.arb` e criará `lib/l10n/app_localizations_fr.dart` automaticamente. O novo idioma já aparecerá no dropdown e será persistido corretamente.
 
-### Resumo das alterações para adicionar um idioma
+### Resumo dos arquivos ao adicionar um idioma
 
 | Arquivo | O que fazer |
 |---|---|
