@@ -64,19 +64,31 @@ lib/
     ├── app_localizations_es.dart     # Implementação para espanhol (gerado)
     ├── app_localizations_pt.dart     # Implementação para português (gerado)
     └── app_localizations_zh.dart     # Implementação para chinês (gerado)
+
+test/
+├── unit/
+│   └── locale_repository_test.dart   # Testes do repositório (setLocale, ValueNotifier)
+└── widget/
+    └── config_screen_test.dart       # Testes de widget da ConfigScreen
 ```
 
 ---
 
 ## 2. Dependências
 
+O `pubspec.yaml` fixa `environment.sdk: ^3.11.0` (Dart 3.11+). As dependências centrais para l10n e persistência são:
+
 ```yaml
-# pubspec.yaml
+# pubspec.yaml (trecho — dependências de i18n e armazenamento)
 dependencies:
+  flutter:
+    sdk: flutter
   flutter_localizations:
     sdk: flutter      # Pacote oficial de localização do Flutter
   intl: any           # Formatação de datas, números e plurais por locale
   shared_preferences: ^2.5.5  # Persistência de chave-valor no dispositivo
+  # Também presente no template do projeto (ícones estilo iOS):
+  cupertino_icons: ^1.0.8
 
 flutter:
   generate: true      # Habilita a geração automática de código l10n
@@ -126,13 +138,14 @@ Após rodar `flutter pub get` (ou `flutter run`), o Flutter gera automaticamente
 - `app_localizations_pt.dart` — implementação para português
 - `app_localizations_zh.dart` — implementação para chinês
 
-> **Nunca edite os arquivos gerados se você usar o `gen-l10n` automático.** Eles são sobrescritos a cada build. Neste projeto, os arquivos `app_localizations*.dart` são mantidos manualmente — edite apenas os `.arb` para adicionar ou alterar traduções.
+> **Não edite `app_localizations*.dart` na mão.** Com `flutter gen-l10n` e `l10n.yaml` apontando para `lib/l10n/`, o gerador **reescreve** esses arquivos quando você roda `flutter pub get`, `flutter run` ou `flutter gen-l10n`. Eles podem estar versionados no repositório só para conveniência/diff; a fonte de verdade das strings são sempre os `.arb`.
 
 ### 3.4 Registrando os delegates no `MaterialApp`
 
 ```dart
-// lib/app.dart
+// lib/app.dart (dentro do ListenableBuilder)
 MaterialApp(
+  title: 'Flutter Translate Example',
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   supportedLocales: AppLocalizations.supportedLocales,
   locale: viewModel.locale,
@@ -208,6 +221,10 @@ Os arquivos `.arb` (Application Resource Bundle) são JSONs que contêm as strin
   "helloWorld": "Hello World",
   "@helloWorld": {
     "description": "The conventional newborn programmer greeting"
+  },
+  "config": "Settings",
+  "@config": {
+    "description": "Label for the configuration screen"
   }
 }
 ```
@@ -217,34 +234,42 @@ Os arquivos `.arb` (Application Resource Bundle) são JSONs que contêm as strin
 | `@@locale` | Declara o idioma do arquivo |
 | `"helloWorld"` | Chave da string (usada no código como `context.l10n.helloWorld`) |
 | `"@helloWorld"` | Metadados da string (descrição, parâmetros, exemplos) |
+| `"config"` | Chave da string (ex.: `context.l10n.config` no `AppBar` da `ConfigScreen`) |
+| `"@config"` | Metadados da string `config` |
 
 O arquivo `app_en.arb` é o **template**: todas as chaves que você quiser usar no app devem estar nele. Os outros `.arb` traduzem essas mesmas chaves.
 
 ### 4.2 Arquivos dos demais idiomas
 
-Os arquivos secundários só precisam conter a chave `@@locale` e as traduções, sem metadados:
+Os arquivos secundários só precisam conter a chave `@@locale` e as traduções; metadados `@…` são opcionais (no repositório, `app_zh.arb` repete `@helloWorld`).
+
+`app_pt.arb`:
 
 ```json
-// app_pt.arb
 {
   "@@locale": "pt",
-  "helloWorld": "Olá, mundo"
+  "helloWorld": "Olá, mundo",
+  "config": "Configurações"
 }
 ```
 
+`app_es.arb`:
+
 ```json
-// app_es.arb
 {
   "@@locale": "es",
-  "helloWorld": "Hola, mundo"
+  "helloWorld": "Hola, mundo",
+  "config": "Configuración"
 }
 ```
 
+`app_zh.arb`:
+
 ```json
-// app_zh.arb
 {
   "@@locale": "zh",
-  "helloWorld": "你好，世界"
+  "helloWorld": "你好，世界",
+  "config": "设置"
 }
 ```
 
@@ -271,13 +296,13 @@ Os arquivos secundários só precisam conter a chave `@@locale` e as traduções
 }
 ```
 
-**Passo 2:** Adicione a tradução nos demais `.arb`:
+**Passo 2:** Adicione a tradução nos demais `.arb` (exemplo `app_pt.arb`):
 
 ```json
-// app_pt.arb
 {
   "@@locale": "pt",
   "helloWorld": "Olá, mundo",
+  "config": "Configurações",
   "welcomeMessage": "Bem-vindo, {name}!"
 }
 ```
@@ -388,11 +413,11 @@ class LocaleService {
 }
 ```
 
-**Por que `FlutterError.reportError` e não apenas `print`?** O `FlutterError.reportError` é o canal oficial do Flutter para reportar erros não fatais. Em modo debug ele imprime no console com formatação detalhada; em produção, qualquer handler registrado em `FlutterError.onError` (como o `FirebaseCrashlytics.instance.recordFlutterFatalError`) recebe o erro automaticamente. Usar `print` ou `debugPrint` descartaria essas integrações.
+**Por que `FlutterError.reportError` e não apenas `print`?** O `FlutterError.reportError` é o canal oficial do Flutter para reportar erros não fatais. Em modo debug ele imprime no console com formatação detalhada; em produção, handlers em `FlutterError.onError` ou `PlatformDispatcher.instance.onError` (por exemplo, integração com Crashlytics ou Sentry) podem capturar e enviar esses eventos. Usar `print` ou `debugPrint` sozinhos não substitui esse encadeamento.
 
 **Comportamento em caso de falha:**
 - `load()` — retorna `_defaultLocale` (inglês), garantindo que o app sempre inicializa em um estado válido.
-- `save()` — a exceção é capturada internamente e reportada via `FlutterError.reportError`. Como o erro não é repropagado, o `AppViewModel` continua o fluxo normalmente (atualiza `_locale` e chama `notifyListeners()`); apenas a preferência não será persistida para a próxima sessão.
+- `save()` — a exceção é capturada internamente e reportada via `FlutterError.reportError`. Como o erro não é repropagado, o `Future` de `save` completa sem lançar; o `LocaleRepository.setLocale` segue e atribui `_locale.value`, e os ViewModels que escutam `localeListenable` recebem `notifyListeners`. Ou seja, a UI pode refletir o novo idioma mesmo com falha de persistência; na próxima abertura o valor salvo pode não existir.
 
 ### 6.3 Por que o `SharedPreferences` é inicializado no `main`
 
