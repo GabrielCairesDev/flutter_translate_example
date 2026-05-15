@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_translate_example/l10n/context_l10n.dart';
-import 'package:flutter_translate_example/routing/app_routes.dart';
+import 'package:flutter_translate_example/ui/core/routing/app_routes.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});

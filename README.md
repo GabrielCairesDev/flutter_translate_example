@@ -24,52 +24,55 @@ Projeto de referência que demonstra como implementar **internacionalização (l
 
 ```
 lib/
-├── main.dart                          # Ponto de entrada; constrói e injeta as dependências
-├── app.dart                           # Widget raiz — recebe AppViewModel e AppRoutes via construtor
+├── main.dart                                    # Ponto de entrada; constrói e injeta as dependências
 │
 ├── data/
 │   ├── repositories/
-│   │   └── locale_repository.dart    # Fonte da verdade do locale; expõe ValueListenable<Locale>
+│   │   └── locale_repository.dart              # Fonte da verdade do locale; expõe ValueListenable<Locale>
 │   └── services/
-│       └── locale_service.dart       # Lê e grava o locale no SharedPreferences
+│       └── locale_service.dart                 # Lê e grava o locale no SharedPreferences
 │
 ├── domain/
-│   ├── app_locales.dart              # Funções utilitárias: localeFromCode / localeToCode
-│   └── locale_labels.dart            # Mapa de código de idioma → label de exibição
+│   ├── app_locales.dart                        # Funções utilitárias: localeFromCode / localeToCode
+│   └── locale_labels.dart                      # Mapa de código de idioma → label de exibição
 │
-├── routing/
-│   └── app_routes.dart               # onGenerateRoute; instancia ConfigViewModel por rota
-│
-├── ui/
-│   ├── app/
-│   │   └── view_model/
-│   │       └── app_view_model.dart   # Observer fino do LocaleRepository (ChangeNotifier)
-│   ├── config/
-│   │   ├── view_model/
-│   │   │   └── config_view_model.dart # currentLocaleCode, setLocale(Locale)
-│   │   └── widgets/
-│   │       └── config_screen.dart    # Tela de configuração; _LocaleDropdown + appLocaleLabels
-│   └── home/
-│       └── widgets/
-│           └── home_screen.dart      # Tela inicial (navega para ConfigScreen via FAB)
-│
-└── l10n/
-    ├── context_l10n.dart             # Extensão de atalho para BuildContext
-    ├── app_en.arb                    # Traduções em inglês (template)
-    ├── app_es.arb                    # Traduções em espanhol
-    ├── app_pt.arb                    # Traduções em português
-    ├── app_zh.arb                    # Traduções em chinês
-    ├── app_localizations.dart        # Classe abstrata base (gerado)
-    ├── app_localizations_en.dart     # Implementação para inglês (gerado)
-    ├── app_localizations_es.dart     # Implementação para espanhol (gerado)
-    ├── app_localizations_pt.dart     # Implementação para português (gerado)
-    └── app_localizations_zh.dart     # Implementação para chinês (gerado)
+└── ui/
+    ├── core/
+    │   └── routing/
+    │       └── app_routes.dart                 # onGenerateRoute; instancia ConfigViewModel por rota
+    │
+    ├── features/
+    │   ├── app/
+    │   │   ├── view_models/
+    │   │   │   └── app_view_model.dart         # Observer fino do LocaleRepository (ChangeNotifier)
+    │   │   └── views/
+    │   │       └── app.dart                    # Widget raiz — recebe AppViewModel e AppRoutes via construtor
+    │   ├── config/
+    │   │   ├── view_models/
+    │   │   │   └── config_view_model.dart      # currentLocaleCode, setLocale(Locale)
+    │   │   └── views/
+    │   │       └── config_screen.dart          # Tela de configuração; _LocaleDropdown + appLocaleLabels
+    │   └── home/
+    │       └── views/
+    │           └── home_screen.dart            # Tela inicial (navega para ConfigScreen via FAB)
+    │
+    └── l10n/  *(gerado — não editar manualmente)*
+        ├── context_l10n.dart                   # Extensão de atalho para BuildContext
+        ├── app_en.arb                          # Traduções em inglês (template)
+        ├── app_es.arb                          # Traduções em espanhol
+        ├── app_pt.arb                          # Traduções em português
+        ├── app_zh.arb                          # Traduções em chinês
+        ├── app_localizations.dart              # Classe abstrata base (gerado)
+        ├── app_localizations_en.dart           # Implementação para inglês (gerado)
+        ├── app_localizations_es.dart           # Implementação para espanhol (gerado)
+        ├── app_localizations_pt.dart           # Implementação para português (gerado)
+        └── app_localizations_zh.dart           # Implementação para chinês (gerado)
 
 test/
 ├── unit/
-│   └── locale_repository_test.dart   # Testes do repositório (setLocale, ValueNotifier)
+│   └── locale_repository_test.dart             # Testes do repositório (setLocale, ValueNotifier)
 └── widget/
-    └── config_screen_test.dart       # Testes de widget da ConfigScreen
+    └── config_screen_test.dart                 # Testes de widget da ConfigScreen
 ```
 
 ---
@@ -143,7 +146,7 @@ Após rodar `flutter pub get` (ou `flutter run`), o Flutter gera automaticamente
 ### 3.4 Registrando os delegates no `MaterialApp`
 
 ```dart
-// lib/app.dart (dentro do ListenableBuilder)
+// lib/ui/features/app/views/app.dart (dentro do ListenableBuilder)
 MaterialApp(
   title: 'Flutter Translate Example',
   localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -163,7 +166,7 @@ MaterialApp(
 O `LocaleRepository` é a **fonte da verdade** do locale. O `AppViewModel` é um observer fino: não guarda estado próprio, apenas escuta o `ValueListenable<Locale>` do repositório e chama `notifyListeners`. O `ListenableBuilder` envolve o `MaterialApp` para reconstruí-lo a cada mudança:
 
 ```dart
-// lib/app.dart
+// lib/ui/features/app/views/app.dart
 class App extends StatelessWidget {
   const App({super.key, required this.viewModel, required this.routes});
 
@@ -200,10 +203,10 @@ extension AppLocalizationsContext on BuildContext {
 Uso na tela:
 
 ```dart
-// lib/ui/home/widgets/home_screen.dart
+// lib/ui/features/home/views/home_screen.dart
 Text(context.l10n.helloWorld)
 
-// lib/ui/config/widgets/config_screen.dart
+// lib/ui/features/config/views/config_screen.dart
 AppBar(title: Text(context.l10n.config))
 ```
 
@@ -473,7 +476,7 @@ Expor `ValueListenable<Locale>` (em vez de `Listenable` opaco) permite que a cam
 O `AppViewModel` não armazena estado próprio. Ele apenas escuta o `ValueListenable<Locale>` do repositório e repropaga as notificações para a UI via `notifyListeners`:
 
 ```dart
-// lib/ui/app/view_model/app_view_model.dart
+// lib/ui/features/app/view_models/app_view_model.dart
 class AppViewModel extends ChangeNotifier {
   AppViewModel({required LocaleRepository localeRepository})
       : _localeRepository = localeRepository {
@@ -546,7 +549,7 @@ main()
 `AppRoutes` recebe `LocaleRepository` e instancia um novo `ConfigViewModel` a cada navegação para `/config`. O `ConfigScreen` é um `StatefulWidget` que chama `viewModel.dispose()` no seu próprio `dispose`, encerrando o listener:
 
 ```dart
-// lib/routing/app_routes.dart
+// lib/ui/core/routing/app_routes.dart
 class AppRoutes {
   const AppRoutes({required this.localeRepository});
 
@@ -572,7 +575,7 @@ class AppRoutes {
 O `ConfigViewModel` depende de `LocaleRepository`. Expõe `currentLocaleCode` e `setLocale` — o mapa `appLocaleLabels` em `locale_labels.dart` é usado diretamente na View para montar o dropdown.
 
 ```dart
-// lib/ui/config/view_model/config_view_model.dart
+// lib/ui/features/config/view_models/config_view_model.dart
 class ConfigViewModel extends ChangeNotifier {
   ConfigViewModel(this._localeRepository) {
     _localeRepository.localeListenable.addListener(notifyListeners);
@@ -596,7 +599,7 @@ class ConfigViewModel extends ChangeNotifier {
 O `Scaffold` e o `AppBar` são estáticos — só o dropdown precisa reconstruir. O `ListenableBuilder` envolve apenas o widget `_LocaleDropdown`, evitando reconstruções desnecessárias da tela inteira:
 
 ```dart
-// lib/ui/config/widgets/config_screen.dart
+// lib/ui/features/config/views/config_screen.dart
 @override
 Widget build(BuildContext context) {
   return Scaffold(
@@ -788,7 +791,7 @@ O Flutter detectará o novo `app_fr.arb` e criará `lib/l10n/app_localizations_f
 | `lib/domain/locale_labels.dart` | **Adicionar** código e label ao mapa `appLocaleLabels` |
 | `lib/data/services/locale_service.dart` | **Nada** — delega a serialização para `app_locales.dart` |
 | `lib/domain/app_locales.dart` (`localeFromCode`/`localeToCode`) | **Nada** — funções genéricas para qualquer locale |
-| `lib/app.dart` | **Nada** — usa `AppLocalizations.supportedLocales` (gerado) |
+| `lib/ui/features/app/views/app.dart` | **Nada** — usa `AppLocalizations.supportedLocales` (gerado) |
 
 ### Exemplo com código de país: Português do Brasil (`pt_BR`)
 

@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_translate_example/data/repositories/locale_repository.dart';
 import 'package:flutter_translate_example/data/services/locale_service.dart';
 import 'package:flutter_translate_example/l10n/app_localizations.dart';
-import 'package:flutter_translate_example/ui/config/view_model/config_view_model.dart';
-import 'package:flutter_translate_example/ui/config/widgets/config_screen.dart';
+import 'package:flutter_translate_example/ui/features/config/view_models/config_view_model.dart';
+import 'package:flutter_translate_example/ui/features/config/views/config_screen.dart';
 
 void main() {
   setUp(() {

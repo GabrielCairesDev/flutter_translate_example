@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'l10n/app_localizations.dart';
-import 'routing/app_routes.dart';
-import 'ui/app/view_model/app_view_model.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../../core/routing/app_routes.dart';
+import '../view_models/app_view_model.dart';
 
 class App extends StatelessWidget {
   const App({super.key, required this.viewModel, required this.routes});

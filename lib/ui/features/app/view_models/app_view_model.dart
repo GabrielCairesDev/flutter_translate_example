@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import '../../../data/repositories/locale_repository.dart';
+import '../../../../data/repositories/locale_repository.dart';
 
 class AppViewModel extends ChangeNotifier {
   AppViewModel({required LocaleRepository localeRepository})

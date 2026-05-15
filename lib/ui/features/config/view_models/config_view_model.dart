@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
-import '../../../data/repositories/locale_repository.dart';
-import '../../../domain/app_locales.dart';
+import '../../../../data/repositories/locale_repository.dart';
+import '../../../../domain/app_locales.dart';
 
 class ConfigViewModel extends ChangeNotifier {
   ConfigViewModel(this._localeRepository) {

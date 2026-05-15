@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'app.dart';
 import 'data/repositories/locale_repository.dart';
 import 'data/services/locale_service.dart';
-import 'routing/app_routes.dart';
-import 'ui/app/view_model/app_view_model.dart';
+import 'ui/core/routing/app_routes.dart';
+import 'ui/features/app/view_models/app_view_model.dart';
+import 'ui/features/app/views/app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
