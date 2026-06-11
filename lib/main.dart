@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'data/repositories/locale_repository.dart';
 import 'data/services/locale_service.dart';
 import 'ui/core/routing/app_routes.dart';
-import 'ui/features/app/view_models/app_view_model.dart';
 import 'ui/features/app/views/app.dart';
 
 Future<void> main() async {
@@ -13,7 +12,7 @@ Future<void> main() async {
   final repository = LocaleRepository(LocaleService(prefs));
   runApp(
     App(
-      viewModel: AppViewModel(localeRepository: repository),
+      localeRepository: repository,
       routes: AppRoutes(localeRepository: repository),
     ),
   );

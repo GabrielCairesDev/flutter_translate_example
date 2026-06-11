@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_translate_example/domain/app_locales.dart';
-import 'package:flutter_translate_example/domain/locale_labels.dart';
 import 'package:flutter_translate_example/l10n/context_l10n.dart';
 
 import '../view_models/config_view_model.dart';

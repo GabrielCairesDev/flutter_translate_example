@@ -33,8 +33,7 @@ lib/
 │       └── locale_service.dart                 # Lê e grava o locale no SharedPreferences
 │
 ├── domain/
-│   ├── app_locales.dart                        # Funções utilitárias: localeFromCode / localeToCode
-│   └── locale_labels.dart                      # Mapa de código de idioma → label de exibição
+│   └── app_locales.dart                        # localeFromCode, localeToCode e appLocaleLabels
 │
 └── ui/
     ├── core/
@@ -43,10 +42,8 @@ lib/
     │
     ├── features/
     │   ├── app/
-    │   │   ├── view_models/
-    │   │   │   └── app_view_model.dart         # Observer fino do LocaleRepository (ChangeNotifier)
     │   │   └── views/
-    │   │       └── app.dart                    # Widget raiz — recebe AppViewModel e AppRoutes via construtor
+    │   │       └── app.dart                    # Widget raiz — ouve LocaleRepository e configura MaterialApp
     │   ├── config/
     │   │   ├── view_models/
     │   │   │   └── config_view_model.dart      # currentLocaleCode, setLocale(Locale)
@@ -163,23 +160,23 @@ MaterialApp(
 | `locale` | Define o idioma ativo. Quando muda, o `MaterialApp` reconstrói a árvore |
 | `onGenerateRoute` | Função de roteamento dinâmico definida em `AppRoutes` |
 
-O `LocaleRepository` é a **fonte da verdade** do locale. O `AppViewModel` é um observer fino: não guarda estado próprio, apenas escuta o `ValueListenable<Locale>` do repositório e chama `notifyListeners`. O `ListenableBuilder` envolve o `MaterialApp` para reconstruí-lo a cada mudança:
+O `LocaleRepository` é a **fonte da verdade** do locale. O widget `App` escuta `localeListenable` diretamente com `ValueListenableBuilder` — sem ViewModel intermediário, porque não há lógica de apresentação além de repassar o locale ao `MaterialApp`:
 
 ```dart
 // lib/ui/features/app/views/app.dart
 class App extends StatelessWidget {
-  const App({super.key, required this.viewModel, required this.routes});
+  const App({super.key, required this.localeRepository, required this.routes});
 
-  final AppViewModel viewModel;
+  final LocaleRepository localeRepository;
   final AppRoutes routes;
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: viewModel,
-      builder: (context, _) {
+    return ValueListenableBuilder<Locale>(
+      valueListenable: localeRepository.localeListenable,
+      builder: (context, locale, _) {
         return MaterialApp(
-          locale: viewModel.locale,
+          locale: locale,
           onGenerateRoute: routes.onGenerateRoute,
           // ...
         );
@@ -373,7 +370,7 @@ Locale('zh')       → "zh"
 
 ### 6.2 `LocaleService`: salvar e carregar
 
-O serviço delega a serialização para as funções de `app_locales.dart`. Como operações de I/O podem falhar (por exemplo, falta de espaço em disco), ambos os métodos envolvem a chamada em `try-catch`. Os erros são reportados via `FlutterError.reportError`, que em produção pode ser interceptado por ferramentas como Crashlytics através do `FlutterError.onError`:
+O serviço encapsula o `SharedPreferences` e delega a serialização para `app_locales.dart`:
 
 ```dart
 // lib/data/services/locale_service.dart
@@ -386,41 +383,17 @@ class LocaleService {
   final SharedPreferences _prefs;
 
   Locale load() {
-    try {
-      final saved = _prefs.getString(_key);
-      return saved != null ? localeFromCode(saved) : _defaultLocale;
-    } catch (error, stackTrace) {
-      _reportError(error, stackTrace, 'ao carregar o locale do SharedPreferences');
-      return _defaultLocale;
-    }
+    final saved = _prefs.getString(_key);
+    return saved != null ? localeFromCode(saved) : _defaultLocale;
   }
 
   Future<void> save(Locale locale) async {
-    try {
-      await _prefs.setString(_key, localeToCode(locale));
-    } catch (error, stackTrace) {
-      _reportError(error, stackTrace, 'ao salvar o locale no SharedPreferences');
-    }
-  }
-
-  void _reportError(Object error, StackTrace stackTrace, String context) {
-    FlutterError.reportError(
-      FlutterErrorDetails(
-        exception: error,
-        stack: stackTrace,
-        library: 'LocaleService',
-        context: ErrorDescription(context),
-      ),
-    );
+    await _prefs.setString(_key, localeToCode(locale));
   }
 }
 ```
 
-**Por que `FlutterError.reportError` e não apenas `print`?** O `FlutterError.reportError` é o canal oficial do Flutter para reportar erros não fatais. Em modo debug ele imprime no console com formatação detalhada; em produção, handlers em `FlutterError.onError` ou `PlatformDispatcher.instance.onError` (por exemplo, integração com Crashlytics ou Sentry) podem capturar e enviar esses eventos. Usar `print` ou `debugPrint` sozinhos não substitui esse encadeamento.
-
-**Comportamento em caso de falha:**
-- `load()` — retorna `_defaultLocale` (inglês), garantindo que o app sempre inicializa em um estado válido.
-- `save()` — a exceção é capturada internamente e reportada via `FlutterError.reportError`. Como o erro não é repropagado, o `Future` de `save` completa sem lançar; o `LocaleRepository.setLocale` segue e atribui `_locale.value`, e os ViewModels que escutam `localeListenable` recebem `notifyListeners`. Ou seja, a UI pode refletir o novo idioma mesmo com falha de persistência; na próxima abertura o valor salvo pode não existir.
+Se nada estiver salvo, `load()` retorna inglês (`_defaultLocale`).
 
 ### 6.3 Por que o `SharedPreferences` é inicializado no `main`
 
@@ -434,7 +407,7 @@ Future<void> main() async {
   final repository = LocaleRepository(LocaleService(prefs));
   runApp(
     App(
-      viewModel: AppViewModel(localeRepository: repository),
+      localeRepository: repository,
       routes: AppRoutes(localeRepository: repository),
     ),
   );
@@ -471,33 +444,13 @@ class LocaleRepository {
 
 Expor `ValueListenable<Locale>` (em vez de `Listenable` opaco) permite que a camada de apresentação leia o valor atual e se inscreva para mudanças de forma direta.
 
-### 6.5 `AppViewModel`: observer fino
+### 6.5 Por que o `App` não usa ViewModel
 
-O `AppViewModel` não armazena estado próprio. Ele apenas escuta o `ValueListenable<Locale>` do repositório e repropaga as notificações para a UI via `notifyListeners`:
+Neste projeto pequeno, o widget raiz só precisa reagir a mudanças de locale. Criar um `AppViewModel` que apenas repassa `localeListenable` adicionaria uma camada sem lógica própria.
 
-```dart
-// lib/ui/features/app/view_models/app_view_model.dart
-class AppViewModel extends ChangeNotifier {
-  AppViewModel({required LocaleRepository localeRepository})
-      : _localeRepository = localeRepository {
-    _localeRepository.localeListenable.addListener(notifyListeners);
-  }
+O `ValueListenableBuilder` já resolve isso: o repositório permanece a única fonte da verdade e o `MaterialApp` reconstrói quando o locale muda.
 
-  final LocaleRepository _localeRepository;
-
-  Locale get locale => _localeRepository.localeListenable.value;
-
-  @override
-  void dispose() {
-    _localeRepository.localeListenable.removeListener(notifyListeners);
-    super.dispose();
-  }
-}
-```
-
-**Por que não guardar `_locale` no ViewModel?** O repositório já é o estado canônico. Duplicar o valor no ViewModel criaria duas fontes de verdade que podem divergir. O ViewModel atua como ponte reativa entre o repositório e a UI, sem duplicar dados.
-
-Essa separação respeita a **Layered Architecture**: a camada de Dados detém e persiste o estado; a camada de Apresentação apenas observa e expõe o que a UI precisa.
+**ViewModel fica na `ConfigScreen`**, onde há interação do usuário (dropdown) e lógica de apresentação (`currentLocaleCode`).
 
 ---
 
@@ -515,7 +468,7 @@ Future<void> main() async {
   final repository = LocaleRepository(LocaleService(prefs));
   runApp(
     App(
-      viewModel: AppViewModel(localeRepository: repository),
+      localeRepository: repository,
       routes: AppRoutes(localeRepository: repository),
     ),
   );
@@ -536,8 +489,7 @@ main()
   ├─ LocaleService(prefs)
   ├─ LocaleRepository(service)
   │
-  ├─ AppViewModel(localeRepository)     ← recebe LocaleRepository
-  │       └─ ouve localeListenable
+  ├─ App(localeRepository)              ← ValueListenableBuilder ouve localeListenable
   │
   └─ AppRoutes(localeRepository)        ← recebe LocaleRepository
           └─ por rota: ConfigViewModel(localeRepository)
@@ -572,7 +524,7 @@ class AppRoutes {
 
 ### 7.4 `ConfigViewModel`: lógica de apresentação da tela de configuração
 
-O `ConfigViewModel` depende de `LocaleRepository`. Expõe `currentLocaleCode` e `setLocale` — o mapa `appLocaleLabels` em `locale_labels.dart` é usado diretamente na View para montar o dropdown.
+O `ConfigViewModel` depende de `LocaleRepository`. Expõe `currentLocaleCode` e `setLocale` — o mapa `appLocaleLabels` em `app_locales.dart` é usado diretamente na View para montar o dropdown.
 
 ```dart
 // lib/ui/features/config/view_models/config_view_model.dart
@@ -648,13 +600,10 @@ main()
   │                 ├─ se existir → ValueNotifier(Locale salvo)
   │                 └─ se não existir → ValueNotifier(Locale('en'))
   │
-  ├─ AppViewModel(localeRepository: repository)
-  │     └─ adiciona listener em localeListenable → notifyListeners
-  │
   ├─ AppRoutes(localeRepository: repository)
   │
-  └─ runApp(App(viewModel: ..., routes: ...))
-        └─ ListenableBuilder ouve AppViewModel
+  └─ runApp(App(localeRepository: ..., routes: ...))
+        └─ ValueListenableBuilder ouve localeListenable
               └─ MaterialApp renderiza com locale correto no primeiro frame
 ```
 
@@ -677,8 +626,8 @@ Usuário seleciona "Português" no dropdown
   │           ├─ service.save(Locale('pt')) → grava "pt" no SharedPreferences
   │           └─ _locale.value = Locale('pt')  ← ValueNotifier notifica ouvintes
   │
-  ├─ AppViewModel recebe notificação via localeListenable
-  │     └─ notifyListeners() → App reconstrói MaterialApp com locale: Locale('pt')
+  ├─ App (ValueListenableBuilder) recebe notificação via localeListenable
+  │     └─ MaterialApp reconstrói com locale: Locale('pt')
   │
   ├─ ConfigViewModel recebe notificação via localeListenable
   │     └─ notifyListeners() → _LocaleDropdown reconstrói com currentLocaleCode: "pt"
@@ -692,8 +641,7 @@ Usuário seleciona "Português" no dropdown
 ┌─────────────────────────────────────────────────────┐
 │                  Presentation Layer                  │
 │                                                      │
-│  App ──► AppViewModel (observer fino)               │
-│                    │ ouve localeListenable         │
+│  App ──► ValueListenableBuilder (localeListenable)  │
 │  HomeScreen ──► navega ──► ConfigScreen             │
 │  ConfigScreen ──► ConfigViewModel (observer fino)   │
 │                    │ ouve localeListenable         │
@@ -708,7 +656,7 @@ Usuário seleciona "Português" no dropdown
 │                  └──► SharedPreferences             │
 └─────────────────────────────────────────────────────┘
 
-  Utilitários em domain/: app_locales, locale_labels (UI + LocaleService)
+  Utilitários em domain/: app_locales (serialização + labels do dropdown)
 
   Composição das dependências: main() → runApp()
   (sem Service Locator global)
@@ -735,10 +683,10 @@ Crie o arquivo `lib/l10n/app_fr.arb` com as traduções:
 
 ### Etapa 2 — Registrar o idioma nos metadados do app
 
-Abra `lib/domain/locale_labels.dart` e adicione o francês:
+Abra `lib/domain/app_locales.dart` e adicione o francês:
 
 ```dart
-// lib/domain/locale_labels.dart
+// lib/domain/app_locales.dart
 const Map<String, String> appLocaleLabels = <String, String>{
   'en': 'English',
   'es': 'Español',
@@ -788,7 +736,7 @@ O Flutter detectará o novo `app_fr.arb` e criará `lib/l10n/app_localizations_f
 | Arquivo | O que fazer |
 |---|---|
 | `lib/l10n/app_fr.arb` | **Criar** com as traduções |
-| `lib/domain/locale_labels.dart` | **Adicionar** código e label ao mapa `appLocaleLabels` |
+| `lib/domain/app_locales.dart` | **Adicionar** código e label ao mapa `appLocaleLabels` |
 | `lib/data/services/locale_service.dart` | **Nada** — delega a serialização para `app_locales.dart` |
 | `lib/domain/app_locales.dart` (`localeFromCode`/`localeToCode`) | **Nada** — funções genéricas para qualquer locale |
 | `lib/ui/features/app/views/app.dart` | **Nada** — usa `AppLocalizations.supportedLocales` (gerado) |
@@ -804,10 +752,10 @@ Para idiomas que usam código de país, o processo é idêntico. Crie `app_pt_BR
 }
 ```
 
-Registre em `locale_labels.dart`:
+Registre em `app_locales.dart`:
 
 ```dart
-// lib/domain/locale_labels.dart
+// lib/domain/app_locales.dart
 const Map<String, String> appLocaleLabels = <String, String>{
   // ...
   'pt_BR': 'Português (Brasil)',

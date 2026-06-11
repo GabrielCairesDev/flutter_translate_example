@@ -1,5 +1,13 @@
 import 'package:flutter/widgets.dart';
 
+/// Labels exibidos no dropdown da tela de configuração.
+const Map<String, String> appLocaleLabels = <String, String>{
+  'en': 'English',
+  'es': 'Español',
+  'pt': 'Português',
+  'zh': '中文',
+};
+
 Locale localeFromCode(String code) {
   final parts = code.split('_');
   return parts.length == 2 ? Locale(parts[0], parts[1]) : Locale(parts[0]);

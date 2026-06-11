@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
-
-import '../../../../l10n/app_localizations.dart';
-import '../../../core/routing/app_routes.dart';
-import '../view_models/app_view_model.dart';
+import 'package:flutter_translate_example/data/repositories/locale_repository.dart';
+import 'package:flutter_translate_example/l10n/app_localizations.dart';
+import 'package:flutter_translate_example/ui/core/routing/app_routes.dart';
 
 class App extends StatelessWidget {
-  const App({super.key, required this.viewModel, required this.routes});
+  const App({super.key, required this.localeRepository, required this.routes});
 
-  final AppViewModel viewModel;
+  final LocaleRepository localeRepository;
   final AppRoutes routes;
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: viewModel,
-      builder: (context, _) {
+    return ValueListenableBuilder<Locale>(
+      valueListenable: localeRepository.localeListenable,
+      builder: (context, locale, _) {
         return MaterialApp(
           title: 'Flutter Translate Example',
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: viewModel.locale,
+          locale: locale,
           onGenerateRoute: routes.onGenerateRoute,
         );
       },
